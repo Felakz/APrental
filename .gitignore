@@ -1,0 +1,18 @@
+# Credenciales reales (solo se suben los ejemplos)
+ControlParental-App/agente/config.json
+ControlParental-App/server/config.js
+
+# Datos de reportes y PDFs (informacion personal)
+ControlParental-App/server/data/
+
+# Logs del agente
+ControlParental-App/agente/agente.log
+
+# Carpetas de desarrollo (la app autocontenida ya esta en ControlParental-App)
+/agent/
+/server/
+
+# Sistema
+Thumbs.db
+.DS_Store
+desktop.ini

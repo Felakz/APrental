@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control Parental</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="loginView" class="view">
+    <div class="card">
+      <h1>Control Parental</h1>
+      <p class="subtitle">Panel de supervisión para padres</p>
+      <form id="loginForm">
+        <input type="password" id="password" placeholder="Contraseña de padre" autocomplete="current-password" required />
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="loginError" class="error"></p>
+    </div>
+  </div>
+
+  <div id="mainView" class="view hidden">
+    <header>
+      <h1>Control Parental</h1>
+      <button id="logoutBtn" class="ghost">Salir</button>
+    </header>
+
+    <section class="card">
+      <h2>Dispositivos</h2>
+      <table id="agentsTable">
+        <thead>
+          <tr>
+            <th>Dispositivo</th>
+            <th>Estado</th>
+            <th>Vista en vivo</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="noAgents" class="muted">No hay agentes conectados todavía.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Reporte de actividad</h2>
+        <input type="date" id="reportDate" title="Elige el día a consultar" />
+      </div>
+      <table id="reportTable">
+        <thead>
+          <tr>
+            <th>Aplicación</th>
+            <th>Tiempo de uso</th>
+            <th>Última ventana</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="noReport" class="muted">Aún no hay actividad registrada ese día.</p>
+    </section>
+
+    <section class="card">
+      <h2>Reportes PDF por día</h2>
+      <p class="muted">Se generan automáticamente y quedan archivados en el servidor.</p>
+      <button id="pdfTodayBtn" class="small">Descargar PDF de hoy</button>
+      <table id="pdfTable">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="noPdf" class="muted">Aún no hay PDFs generados.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Actividad de teclado</h2>
+        <input type="date" id="typingDate" title="Elige el día a consultar" />
+      </div>
+      <p class="warning">Sensible: esto captura lo que se escribe en cada aplicación y está siempre activo.</p>
+      <table id="typingTable">
+        <thead>
+          <tr>
+            <th>Hora</th>
+            <th>Aplicación</th>
+            <th>Texto</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="noTyping" class="muted">No hay registros de teclado ese día.</p>
+    </section>
+  </div>
+
+  <div id="liveModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="liveTitle">Vista en vivo</h3>
+        <span id="liveStatus" class="badge">solicitando...</span>
+        <label id="liveQualityLabel" class="live-quality-label">Calidad
+          <select id="liveQuality">
+            <option value="960" data-q="45">Estándar</option>
+            <option value="1280" data-q="70">Alta</option>
+            <option value="1920" data-q="85" selected>Ultra HD</option>
+          </select>
+        </label>
+        <button id="liveFullBtn" class="ghost">Pantalla completa</button>
+        <button id="liveCloseBtn" class="danger">Detener y cerrar</button>
+      </div>
+      <div class="live-stage">
+        <img id="liveImg" alt="Pantalla del dispositivo" />
+        <div id="livePlaceholder" class="live-placeholder">Esperando pantalla...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="typingModal" class="modal hidden">
+    <div class="modal-content modal-log">
+      <div class="modal-header">
+        <h3 id="typingModalTitle">Texto completo</h3>
+        <button id="typingModalClose" class="danger">Cerrar</button>
+      </div>
+      <div class="typing-log" id="typingLog"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
