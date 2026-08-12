@@ -1,5 +1,5 @@
 {
-  "serverUrl": "ws://localhost:4000/ws",
+  "serverUrl": "wss://control-parental-honor.onrender.com/ws",
   "agentKey": "xiqjtUg1F39TlvYdVRDA8SzCMQELo5nh",
   "deviceName": "Honor 400 (telefono)",
   "adbAddress": "100.122.200.118:5555",

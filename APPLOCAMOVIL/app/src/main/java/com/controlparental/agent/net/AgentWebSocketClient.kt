@@ -8,7 +8,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 class AgentWebSocketClient(
-    private var serverUrl: String = "ws://100.112.77.32:4000/ws",
+    private var serverUrl: String = "wss://control-parental-honor.onrender.com/ws",
     private val agentKey: String = "xiqjtUg1F39TlvYdVRDA8SzCMQELo5nh",
     private val deviceName: String = "Honor 400 (telefono)",
     private val listener: Listener
