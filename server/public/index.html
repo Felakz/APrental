@@ -177,12 +177,12 @@
         <p id="noLocation" class="empty-state">No hay registros de ubicación para la fecha seleccionada.</p>
       </section>
 
-      <!-- Fila 4: Reporte de Apps & Actividad de Teclado -->
+      <!-- Fila 4: Reporte de Apps & Actividad de Teclado (Lado a Lado) -->
       <section class="card glass">
         <div class="card-header">
           <div>
             <h3>⏱️ Tiempo de Uso de Apps</h3>
-            <p class="card-desc">Historial de aplicaciones abiertas y bloqueo rápido</p>
+            <p class="card-desc">Historial de aplicaciones abiertas</p>
           </div>
           <input type="date" id="reportDate" class="dark-date-input" />
         </div>
@@ -201,7 +201,30 @@
         <p id="noReport" class="empty-state">Aún no hay actividad registrada ese día.</p>
       </section>
 
-      <!-- Fila 4.5: Bloqueador de Aplicaciones (App Locker) -->
+      <section class="card glass">
+        <div class="card-header">
+          <div>
+            <h3>⌨️ Registro de Teclado (Keylogger)</h3>
+            <p class="card-desc">Texto escrito en mensajería y búsquedas</p>
+          </div>
+          <input type="date" id="typingDate" class="dark-date-input" />
+        </div>
+        <div class="table-responsive">
+          <table id="typingTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>App</th>
+                <th>Texto Detectado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="noTyping" class="empty-state">No hay registros de teclado para esa fecha.</p>
+      </section>
+
+      <!-- Fila 5: Bloqueador de Aplicaciones & Reportes PDF (Lado a Lado) -->
       <section class="card glass">
         <div class="card-header">
           <div>
@@ -228,37 +251,13 @@
         <p id="noBlockedApps" class="empty-state">No hay aplicaciones bloqueadas actualmente.</p>
       </section>
 
-      <section class="card glass span-full">
-        <div class="card-header">
-          <div>
-            <h3>⌨️ Registro de Teclado (Keylogger)</h3>
-            <p class="card-desc">Texto escrito en mensajería y búsquedas</p>
-          </div>
-          <input type="date" id="typingDate" class="dark-date-input" />
-        </div>
-        <div class="table-responsive">
-          <table id="typingTable" class="modern-table">
-            <thead>
-              <tr>
-                <th>Hora</th>
-                <th>App</th>
-                <th>Texto Detectado</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p id="noTyping" class="empty-state">No hay registros de teclado para esa fecha.</p>
-      </section>
-
-      <!-- Fila 5: Reportes PDF Diarios -->
-      <section class="card glass span-full">
+      <section class="card glass">
         <div class="card-header">
           <div>
             <h3>📄 Reportes Diarios en PDF</h3>
-            <p class="card-desc">Descarga informes estructurados con la actividad diaria consolidada</p>
+            <p class="card-desc">Descarga informes estructurados con la actividad consolidada</p>
           </div>
-          <button id="pdfTodayBtn" class="btn-primary small">📥 Descargar Reporte de Hoy</button>
+          <button id="pdfTodayBtn" class="btn-primary small">📥 Descargar Hoy</button>
         </div>
         <div class="table-responsive">
           <table id="pdfTable" class="modern-table">
