@@ -18,6 +18,9 @@ class LocationTracker(
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
     private var isTracking = false
+    private var lastSentLocation: Location? = null
+    private var lastSentTimeMs: Long = 0L
+
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
@@ -29,7 +32,7 @@ class LocationTracker(
             val providers = locationManager.allProviders
             for (p in providers) {
                 if (p != LocationManager.PASSIVE_PROVIDER && locationManager.isProviderEnabled(p)) {
-                    locationManager.requestLocationUpdates(p, 15000L, 5f, this)
+                    locationManager.requestLocationUpdates(p, 20000L, 10f, this)
                 }
             }
             isTracking = true
@@ -58,9 +61,8 @@ class LocationTracker(
             }
 
             if (best != null) {
-                dispatchLocation(best)
+                dispatchLocation(best, force = true)
             } else {
-                // Si no hay ultima ubicacion, solicitar actualizacion inmediata
                 for (p in providers) {
                     if (locationManager.isProviderEnabled(p)) {
                         locationManager.requestSingleUpdate(p, this, null)
@@ -85,10 +87,23 @@ class LocationTracker(
     }
 
     override fun onLocationChanged(location: Location) {
-        dispatchLocation(location)
+        dispatchLocation(location, force = false)
     }
 
-    private fun dispatchLocation(loc: Location) {
+    private fun dispatchLocation(loc: Location, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val last = lastSentLocation
+        if (!force && last != null) {
+            val dist = loc.distanceTo(last)
+            val elapsed = now - lastSentTimeMs
+            // Filtrar duplicados: solo enviar si se movio mas de 15 metros o paso mas de 60 segundos
+            if (dist < 15f && elapsed < 60000L) {
+                return
+            }
+        }
+        lastSentLocation = loc
+        lastSentTimeMs = now
+
         try {
             val json = JSONObject().apply {
                 put("type", "location")
@@ -97,7 +112,7 @@ class LocationTracker(
                 put("accuracy", loc.accuracy.toDouble())
                 put("speed", loc.speed.toDouble())
                 put("altitude", loc.altitude)
-                put("ts", isoFormat.format(Date(if (loc.time > 0) loc.time else System.currentTimeMillis())))
+                put("ts", isoFormat.format(Date(if (loc.time > 0) loc.time else now)))
             }
             onLocationUpdate(json)
             Log.i("LocationTracker", "Ubicacion enviada: ${loc.latitude}, ${loc.longitude} (acc=${loc.accuracy}m)")

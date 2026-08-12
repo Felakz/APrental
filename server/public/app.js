@@ -415,6 +415,9 @@
   }
 
   // ---------- Mapa Interactivo Leaflet ----------
+  let mapPolyline = null;
+  let accuracyCircle = null;
+
   function initLeafletMap() {
     if (leafletMapInstance) return;
     const mapEl = document.getElementById('leafletMap');
@@ -426,7 +429,7 @@
     }).addTo(leafletMapInstance);
   }
 
-  function updateMapLocation(lat, lon, accuracy) {
+  function updateMapLocation(lat, lon, accuracy, historyList = []) {
     if (!leafletMapInstance) initLeafletMap();
     if (!lat || !lon) return;
 
@@ -436,7 +439,23 @@
     } else {
       mapMarker = L.marker([lat, lon]).addTo(leafletMapInstance);
     }
-    mapMarker.bindPopup(`<b>📍 Honor 400</b><br>Precisión: ${accuracy || 15}m`).openPopup();
+    const acc = Math.round(accuracy || 15);
+    mapMarker.bindPopup(`<b>📍 Honor 400 (Posición Satelital)</b><br>Coordenadas: <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code><br>Margen: ±${acc} m`).openPopup();
+
+    if (accuracyCircle) {
+      accuracyCircle.setLatLng([lat, lon]).setRadius(acc);
+    } else {
+      accuracyCircle = L.circle([lat, lon], { radius: acc, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15 }).addTo(leafletMapInstance);
+    }
+
+    if (historyList && historyList.length > 1) {
+      const latLngs = historyList.map((p) => [p.lat, p.lon]);
+      if (mapPolyline) {
+        mapPolyline.setLatLngs(latLngs);
+      } else {
+        mapPolyline = L.polyline(latLngs, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(leafletMapInstance);
+      }
+    }
   }
 
   // ---------- Carga de Datos y Reportes ----------
@@ -558,27 +577,56 @@
       locationTable.innerHTML = '';
       let total = 0;
       let latest = null;
+      let allPoints = [];
 
       for (const [dev, list] of Object.entries(data)) {
-        list.slice().reverse().forEach((loc) => {
+        allPoints = list;
+        // Filtrar puntos duplicados consecutivos para mostrar una tabla limpia y util
+        const filtered = [];
+        list.forEach((loc) => {
+          const prev = filtered[filtered.length - 1];
+          if (!prev || Math.abs(prev.lat - loc.lat) > 0.0001 || Math.abs(prev.lon - loc.lon) > 0.0001) {
+            filtered.push(loc);
+          } else {
+            // Actualizar la hora mas reciente de esa misma ubicacion
+            prev.ts = loc.ts;
+          }
+        });
+
+        filtered.slice().reverse().forEach((loc) => {
           total++;
           if (!latest) latest = loc;
           const tr = document.createElement('tr');
           const time = loc.ts ? new Date(loc.ts).toLocaleTimeString() : '—';
+          const acc = Math.round(loc.accuracy || 10);
           tr.innerHTML = `
             <td>${time}</td>
             <td>${dev}</td>
             <td><code>${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}</code></td>
-            <td><span class="badge-tag">±${loc.accuracy || 10}m</span></td>
-            <td><a href="https://maps.google.com/?q=${loc.lat},${loc.lon}" target="_blank" class="btn-secondary" style="padding:4px 10px; font-size:11px;">Google Maps ↗</a></td>
+            <td><span class="badge-tag">±${acc} m</span></td>
+            <td>
+              <button class="btn-secondary center-map-btn" data-lat="${loc.lat}" data-lon="${loc.lon}" data-acc="${acc}" style="padding:4px 10px; font-size:11px; margin-right:6px;">🎯 Centrar</button>
+              <a href="https://maps.google.com/?q=${loc.lat},${loc.lon}" target="_blank" class="btn-secondary" style="padding:4px 10px; font-size:11px;">Google Maps ↗</a>
+            </td>
           `;
           locationTable.appendChild(tr);
         });
       }
+
       noLocation.classList.toggle('hidden', total > 0);
       if (latest) {
-        updateMapLocation(latest.lat, latest.lon, latest.accuracy);
+        updateMapLocation(latest.lat, latest.lon, latest.accuracy, allPoints);
       }
+
+      document.querySelectorAll('.center-map-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const lat = parseFloat(e.currentTarget.getAttribute('data-lat'));
+          const lon = parseFloat(e.currentTarget.getAttribute('data-lon'));
+          const acc = parseFloat(e.currentTarget.getAttribute('data-acc'));
+          updateMapLocation(lat, lon, acc, allPoints);
+          document.getElementById('leafletMap').scrollIntoView({ behavior: 'smooth' });
+        });
+      });
     } catch (e) {}
   }
 

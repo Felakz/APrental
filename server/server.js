@@ -572,13 +572,25 @@ function handleAgentMessage(ws, data) {
       const date = todayStr();
       const loc = loadLocation(date);
       if (!loc[agentId]) loc[agentId] = [];
-      loc[agentId].push({
-        lat: data.lat,
-        lon: data.lon,
-        accuracy: data.accuracy || 0,
-        speed: data.speed || 0,
-        ts: data.ts || new Date().toISOString()
-      });
+
+      const lastPoint = loc[agentId][loc[agentId].length - 1];
+      const latDiff = lastPoint ? Math.abs(lastPoint.lat - data.lat) : 1;
+      const lonDiff = lastPoint ? Math.abs(lastPoint.lon - data.lon) : 1;
+      const timeDiff = lastPoint ? (Date.now() - new Date(lastPoint.ts).getTime()) : 999999;
+
+      // Si el movimiento es minimo (< 15m) en menos de 2 minutos, actualizar el punto existente
+      if (lastPoint && latDiff < 0.00015 && lonDiff < 0.00015 && timeDiff < 120000) {
+        lastPoint.ts = data.ts || new Date().toISOString();
+        lastPoint.accuracy = Math.round(data.accuracy || lastPoint.accuracy);
+      } else {
+        loc[agentId].push({
+          lat: data.lat,
+          lon: data.lon,
+          accuracy: Math.round(data.accuracy || 0),
+          speed: Math.round((data.speed || 0) * 3.6),
+          ts: data.ts || new Date().toISOString()
+        });
+      }
       saveLocation(date, loc);
       for (const pws of panels()) {
         send(pws, { type: 'location.updated', agentId, location: data });
