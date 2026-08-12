@@ -26,7 +26,10 @@ echo.
 echo ====================================================================
 echo  [2/5] Verificando APK para instalacion...
 echo ====================================================================
-set APK_PATH=app\build\outputs\apk\debug\app-debug.apk
+set APK_PATH=app\build\outputs\apk\debug\HonorParentalAgent-debug.apk
+if not exist "%APK_PATH%" (
+    set APK_PATH=app\build\outputs\apk\debug\app-debug.apk
+)
 if not exist "%APK_PATH%" (
     set APK_PATH=app\build\outputs\apk\release\app-release.apk
 )

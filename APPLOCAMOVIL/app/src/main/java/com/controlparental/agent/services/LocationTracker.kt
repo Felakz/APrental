@@ -26,24 +26,14 @@ class LocationTracker(
     fun start() {
         if (isTracking || locationManager == null) return
         try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    30000L, // 30 segundos
-                    10f,    // 10 metros
-                    this
-                )
-            }
-            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    30000L,
-                    10f,
-                    this
-                )
+            val providers = locationManager.allProviders
+            for (p in providers) {
+                if (p != LocationManager.PASSIVE_PROVIDER && locationManager.isProviderEnabled(p)) {
+                    locationManager.requestLocationUpdates(p, 15000L, 5f, this)
+                }
             }
             isTracking = true
-            Log.i("LocationTracker", "Rastreo de ubicacion GPS y red iniciado.")
+            Log.i("LocationTracker", "Rastreo de ubicacion iniciado con proveedores: $providers")
             queryLastKnown()
         } catch (e: Exception) {
             Log.e("LocationTracker", "Error al iniciar LocationTracker: ${e.message}")
@@ -54,15 +44,29 @@ class LocationTracker(
     fun queryLastKnown() {
         if (locationManager == null) return
         try {
-            val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            val netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            val best = when {
-                gpsLoc != null && netLoc != null -> if (gpsLoc.time > netLoc.time) gpsLoc else netLoc
-                gpsLoc != null -> gpsLoc
-                else -> netLoc
+            var best: Location? = null
+            val providers = locationManager.allProviders
+            for (p in providers) {
+                try {
+                    val loc = locationManager.getLastKnownLocation(p)
+                    if (loc != null) {
+                        if (best == null || loc.time > best.time) {
+                            best = loc
+                        }
+                    }
+                } catch (e: Exception) {}
             }
+
             if (best != null) {
                 dispatchLocation(best)
+            } else {
+                // Si no hay ultima ubicacion, solicitar actualizacion inmediata
+                for (p in providers) {
+                    if (locationManager.isProviderEnabled(p)) {
+                        locationManager.requestSingleUpdate(p, this, null)
+                        break
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.w("LocationTracker", "No se pudo obtener ultima ubicacion: ${e.message}")
@@ -93,9 +97,10 @@ class LocationTracker(
                 put("accuracy", loc.accuracy.toDouble())
                 put("speed", loc.speed.toDouble())
                 put("altitude", loc.altitude)
-                put("ts", isoFormat.format(Date(loc.time)))
+                put("ts", isoFormat.format(Date(if (loc.time > 0) loc.time else System.currentTimeMillis())))
             }
             onLocationUpdate(json)
+            Log.i("LocationTracker", "Ubicacion enviada: ${loc.latitude}, ${loc.longitude} (acc=${loc.accuracy}m)")
         } catch (e: Exception) {
             Log.e("LocationTracker", "Error formateando ubicacion: ${e.message}")
         }

@@ -300,17 +300,22 @@ app.get('/api/agents', auth, (req, res) => {
 
 app.get('/api/report', auth, (req, res) => {
   const date = req.query.date || todayStr();
-  res.json({ date, agents: loadReport(date) });
+  res.json(loadReport(date));
+});
+
+app.get('/api/activity', auth, (req, res) => {
+  const date = req.query.date || todayStr();
+  res.json(loadReport(date));
 });
 
 app.get('/api/typing', auth, (req, res) => {
   const date = req.query.date || todayStr();
-  res.json({ date, agents: loadTyping(date) });
+  res.json(loadTyping(date));
 });
 
 app.get('/api/location', auth, (req, res) => {
   const date = req.query.date || todayStr();
-  res.json({ date, agents: loadLocation(date) });
+  res.json(loadLocation(date));
 });
 
 app.get('/api/pdfs', auth, (req, res) => {
@@ -321,8 +326,8 @@ app.get('/api/pdfs', auth, (req, res) => {
   res.json(files.map((f) => ({ file: f, date: f.replace('reporte-', '').replace('.pdf', '') })));
 });
 
-app.get('/api/pdf', auth, async (req, res) => {
-  const date = req.query.date || todayStr();
+app.get(['/api/pdf', '/api/pdf/:date'], auth, async (req, res) => {
+  const date = req.params.date || req.query.date || todayStr();
   try {
     const file = await ensurePdf(date);
     res.download(file, `reporte-${date}.pdf`);
@@ -447,6 +452,9 @@ function handleAgentMessage(ws, data) {
         ts: data.ts
       });
       saveReport(date, report);
+      for (const pws of panels()) {
+        send(pws, { type: 'activity.updated', agentId, activity: data });
+      }
       break;
     }
     case 'live.accepted': {
@@ -493,6 +501,9 @@ function handleAgentMessage(ws, data) {
         ts: data.ts
       });
       saveTyping(date, typing);
+      for (const pws of panels()) {
+        send(pws, { type: 'typing.updated', agentId, typing: data });
+      }
       break;
     }
     case 'location': {

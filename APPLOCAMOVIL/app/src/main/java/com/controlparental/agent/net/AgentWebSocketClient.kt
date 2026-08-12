@@ -20,11 +20,14 @@ class AgentWebSocketClient(
         fun onLiveRequest(requestId: String)
         fun onLiveStop()
         fun onCommand(command: String, params: JSONObject)
+        fun onTap(x: Int, y: Int)
+        fun onSwipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int)
+        fun onText(text: String)
     }
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .pingInterval(25, TimeUnit.SECONDS)
+        .pingInterval(20, TimeUnit.SECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
@@ -84,7 +87,8 @@ class AgentWebSocketClient(
     override fun onMessage(webSocket: WebSocket, text: String) {
         try {
             val json = JSONObject(text)
-            when (json.optString("type")) {
+            val type = json.optString("type")
+            when (type) {
                 "agent.welcome" -> {
                     isConnected = true
                     reconnectDelayMs = 3000L
@@ -101,6 +105,23 @@ class AgentWebSocketClient(
                 "ping" -> {
                     val pong = JSONObject().apply { put("type", "pong") }
                     webSocket.send(pong.toString())
+                }
+                "input.tap" -> {
+                    val x = json.optInt("x", 0)
+                    val y = json.optInt("y", 0)
+                    listener.onTap(x, y)
+                }
+                "input.swipe" -> {
+                    val x1 = json.optInt("x1", 0)
+                    val y1 = json.optInt("y1", 0)
+                    val x2 = json.optInt("x2", 0)
+                    val y2 = json.optInt("y2", 0)
+                    val duration = json.optInt("duration", 200)
+                    listener.onSwipe(x1, y1, x2, y2, duration)
+                }
+                "input.text" -> {
+                    val txt = json.optString("text", "")
+                    listener.onText(txt)
                 }
                 "command" -> {
                     val cmd = json.optString("command", "")
