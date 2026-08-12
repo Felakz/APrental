@@ -90,9 +90,24 @@ def send(obj):
     return False
 
 
+def get_target_device():
+    """Detecta automaticamente si el dispositivo esta por USB o por IP."""
+    try:
+        p2 = subprocess.run([ADB, "devices"], capture_output=True, timeout=2, creationflags=0x08000000)
+        lines = p2.stdout.decode("utf-8", errors="ignore").splitlines()
+        for line in lines[1:]:
+            parts = line.strip().split()
+            if len(parts) >= 2 and parts[1] == "device":
+                return parts[0]
+    except Exception:
+        pass
+    return cfg.get("adbAddress", "100.122.200.118:5555")
+
+
 def adb(args):
     """Ejecuta un comando adb y devuelve (returncode, stdout, stderr)."""
-    cmd = [ADB, "-s", cfg["adbAddress"]] + args
+    target = get_target_device()
+    cmd = [ADB, "-s", target] + args
     try:
         p = subprocess.run(
             cmd,
@@ -107,8 +122,9 @@ def adb(args):
 
 
 def adb_connected():
-    code, out, _ = adb(["get-state"])
-    return code == 0 and b"device" in out
+    target = get_target_device()
+    p = subprocess.run([ADB, "-s", target, "get-state"], capture_output=True, timeout=3, creationflags=0x08000000)
+    return p.returncode == 0 and b"device" in p.stdout
 
 
 def capture_frame():
@@ -139,8 +155,7 @@ def capture_loop():
     while live_event.is_set():
         try:
             if not adb_connected():
-                log("capture_loop: adb no conectado, reintentando connect")
-                adb(["connect", cfg["adbAddress"]])
+                log("capture_loop: buscando dispositivo...")
                 time.sleep(2)
                 continue
             frame = capture_frame()
@@ -149,7 +164,7 @@ def capture_loop():
                 log("capture_loop: frame %d bytes ok=%s" % (len(frame), ok))
         except Exception as e:
             log("capture_loop: error: %s\n%s" % (e, traceback.format_exc()))
-        time.sleep(float(cfg.get("frameIntervalSec", 1.0)))
+        time.sleep(float(cfg.get("frameIntervalSec", 0.8)))
     log("capture_loop: fin")
 
 
@@ -320,9 +335,11 @@ def receiver(ws):
 
 def connect():
     global ws_conn
+    import ssl
     url = cfg["serverUrl"]
     log("connect: conectando a %s" % url)
-    ws = websocket.create_connection(url, timeout=15, enable_multithread=True)
+    sslopt = {"cert_reqs": ssl.CERT_NONE} if url.startswith("wss://") else {}
+    ws = websocket.create_connection(url, timeout=10, sslopt=sslopt, enable_multithread=True)
     ws.settimeout(None)
     ws.send(json.dumps({
         "type": "agent.hello",
@@ -346,21 +363,17 @@ def main():
         return
     while True:
         try:
-            if not adb_connected():
-                print("Conectando adb a %s ..." % cfg["adbAddress"])
-                adb(["connect", cfg["adbAddress"]])
-                time.sleep(2)
             connect()
-            print("Puente Honor 400 activo.")
-            log("main: puente activo permanentemente")
             while ws_conn and ws_conn.sock:
                 time.sleep(1)
+        except Exception as e:
+            log("main: error: %s" % e)
+            time.sleep(3)
         except KeyboardInterrupt:
             stop_live()
             sys.exit(0)
         except Exception as e:
             log("main: error: %s\n%s" % (e, traceback.format_exc()))
-            print("Error:", e)
         finally:
             stop_live()
         time.sleep(3)

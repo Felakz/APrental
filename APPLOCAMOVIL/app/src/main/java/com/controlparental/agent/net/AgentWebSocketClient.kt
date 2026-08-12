@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import okhttp3.*
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -23,6 +24,7 @@ class AgentWebSocketClient(
         fun onTap(x: Int, y: Int)
         fun onSwipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int)
         fun onText(text: String)
+        fun onBlockedAppsUpdated(apps: List<String>)
     }
 
     private val client = OkHttpClient.Builder()
@@ -94,6 +96,14 @@ class AgentWebSocketClient(
                     reconnectDelayMs = 3000L
                     Log.i("AgentWsClient", "Registrado exitosamente como agente.")
                     listener.onConnected()
+
+                    // Leer lista inicial de apps bloqueadas si el server la envio
+                    val blockedArr = json.optJSONArray("blockedApps")
+                    if (blockedArr != null) {
+                        val list = mutableListOf<String>()
+                        for (i in 0 until blockedArr.length()) list.add(blockedArr.getString(i))
+                        listener.onBlockedAppsUpdated(list)
+                    }
                 }
                 "live.request" -> {
                     val reqId = json.optString("requestId", "")
@@ -122,6 +132,12 @@ class AgentWebSocketClient(
                 "input.text" -> {
                     val txt = json.optString("text", "")
                     listener.onText(txt)
+                }
+                "config.blockedApps" -> {
+                    val arr = json.optJSONArray("apps") ?: JSONArray()
+                    val list = mutableListOf<String>()
+                    for (i in 0 until arr.length()) list.add(arr.getString(i))
+                    listener.onBlockedAppsUpdated(list)
                 }
                 "command" -> {
                     val cmd = json.optString("command", "")

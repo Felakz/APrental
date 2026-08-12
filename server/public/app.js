@@ -210,6 +210,14 @@
       case 'typing.updated':
         loadTyping();
         break;
+      case 'blockedApps.updated':
+        currentBlockedApps = msg.apps || [];
+        renderBlockedApps(currentBlockedApps);
+        loadReport();
+        break;
+      case 'app_blocked':
+        console.warn('App bloqueada en el teléfono:', msg.app);
+        break;
     }
   }
 
@@ -432,6 +440,73 @@
   }
 
   // ---------- Carga de Datos y Reportes ----------
+  let currentBlockedApps = [];
+
+  async function loadBlockedApps() {
+    try {
+      currentBlockedApps = await api('/api/blocked_apps');
+      renderBlockedApps(currentBlockedApps);
+    } catch (e) {}
+  }
+
+  function renderBlockedApps(list) {
+    const tbody = document.getElementById('blockedAppsList');
+    const emptyState = document.getElementById('noBlockedApps');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!list || !list.length) {
+      if (emptyState) emptyState.classList.remove('hidden');
+      return;
+    }
+    if (emptyState) emptyState.classList.add('hidden');
+    list.forEach((app) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>🚫 ${app}</strong></td>
+        <td><span class="badge-tag" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444;">Bloqueada</span></td>
+        <td>
+          <button class="btn-secondary unblock-btn" data-app="${app}" style="padding: 4px 10px; font-size: 11px;">
+            ✅ Desbloquear
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('.unblock-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        const app = e.currentTarget.getAttribute('data-app');
+        try {
+          await api(`/api/blocked_apps/${encodeURIComponent(app)}`, { method: 'DELETE' });
+          await loadBlockedApps();
+          loadReport();
+        } catch (err) {
+          alert('Error desbloqueando app: ' + err.message);
+        }
+      });
+    });
+  }
+
+  const btnAddBlockApp = document.getElementById('btnAddBlockApp');
+  const customBlockAppInput = document.getElementById('customBlockAppInput');
+  if (btnAddBlockApp && customBlockAppInput) {
+    btnAddBlockApp.addEventListener('click', async () => {
+      const app = customBlockAppInput.value.trim();
+      if (!app) return;
+      try {
+        await api('/api/blocked_apps', {
+          method: 'POST',
+          body: JSON.stringify({ app })
+        });
+        customBlockAppInput.value = '';
+        await loadBlockedApps();
+        loadReport();
+      } catch (err) {
+        alert('Error bloqueando app: ' + err.message);
+      }
+    });
+  }
+
   async function loadReport() {
     try {
       const data = await api(`/api/activity?date=${reportDate.value}`);
@@ -442,15 +517,38 @@
           total++;
           const tr = document.createElement('tr');
           const mins = Math.round((item.durationSec || 0) / 60);
+          const isBlocked = currentBlockedApps.includes(item.app);
+          const blockBtnHtml = isBlocked
+            ? `<button class="btn-secondary toggle-block-btn" data-app="${item.app}" data-action="unblock" style="padding:4px 8px; font-size:11px; color:#10b981;">✅ Desbloquear</button>`
+            : `<button class="btn-action danger toggle-block-btn" data-app="${item.app}" data-action="block" style="padding:4px 8px; font-size:11px;">🚫 Bloquear</button>`;
+          
           tr.innerHTML = `
             <td><strong>${item.app}</strong></td>
             <td><span class="badge-tag">${mins} min (${item.durationSec || 0}s)</span></td>
-            <td style="color:var(--text-muted); font-size:12px;">${item.lastTitle || '—'}</td>
+            <td>${blockBtnHtml}</td>
           `;
           reportTable.appendChild(tr);
         });
       }
       noReport.classList.toggle('hidden', total > 0);
+
+      document.querySelectorAll('.toggle-block-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const app = e.currentTarget.getAttribute('data-app');
+          const action = e.currentTarget.getAttribute('data-action');
+          try {
+            if (action === 'block') {
+              await api('/api/blocked_apps', { method: 'POST', body: JSON.stringify({ app }) });
+            } else {
+              await api(`/api/blocked_apps/${encodeURIComponent(app)}`, { method: 'DELETE' });
+            }
+            await loadBlockedApps();
+            loadReport();
+          } catch (err) {
+            alert('Error modificando estado de la app: ' + err.message);
+          }
+        });
+      });
     } catch (e) {}
   }
 
@@ -545,6 +643,8 @@
   }
 
   function loadAll() {
+    loadAgents();
+    loadBlockedApps();
     loadReport();
     loadLocation();
     loadTyping();

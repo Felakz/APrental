@@ -18,6 +18,7 @@ import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
 import com.controlparental.agent.net.AgentWebSocketClient
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -39,6 +40,7 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
     private var isLiveActive = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
+    private val blockedPackages = Collections.synchronizedSet(mutableSetOf<String>())
 
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
@@ -64,6 +66,22 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         if (pkg.contains("com.controlparental.agent")) return
 
         val nowIso = isoFormat.format(Date())
+
+        // ---------- BLOQUEO ACTIVO DE APLICACIONES ----------
+        if (blockedPackages.contains(pkg)) {
+            Log.w("ParentalAccService", "ACCESO DENEGADO: Aplicacion bloqueada intentando abrirse: $pkg")
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            mainHandler.post {
+                Toast.makeText(applicationContext, "🚫 Aplicación restringida por Control Parental", Toast.LENGTH_SHORT).show()
+            }
+            val blockEvent = JSONObject().apply {
+                put("type", "app_blocked")
+                put("app", pkg)
+                put("ts", nowIso)
+            }
+            wsClient?.send(blockEvent)
+            return
+        }
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
@@ -122,6 +140,12 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
 
     override fun onDisconnected() {
         Log.w("ParentalAccService", "Desconectado del servidor de control parental.")
+    }
+
+    override fun onBlockedAppsUpdated(apps: List<String>) {
+        blockedPackages.clear()
+        blockedPackages.addAll(apps)
+        Log.i("ParentalAccService", "Lista de apps bloqueadas sincronizada: $blockedPackages")
     }
 
     override fun onLiveRequest(requestId: String) {
@@ -186,6 +210,20 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         when (command) {
             "request_location" -> locationTracker?.queryLastKnown()
             "request_screenshot" -> captureSingleFrame()
+            "block_app" -> {
+                val pkg = params.optString("app", "")
+                if (pkg.isNotEmpty()) {
+                    blockedPackages.add(pkg)
+                    Log.i("ParentalAccService", "App bloqueada localmente: $pkg")
+                }
+            }
+            "unblock_app" -> {
+                val pkg = params.optString("app", "")
+                if (pkg.isNotEmpty()) {
+                    blockedPackages.remove(pkg)
+                    Log.i("ParentalAccService", "App desbloqueada: $pkg")
+                }
+            }
             "lock" -> {
                 val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
                 try {
@@ -201,6 +239,7 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
             "recents" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             "wake" -> {
                 val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                @Suppress("DEPRECATION")
                 val wl = pm?.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "ParentalApp:Wake")
                 wl?.acquire(3000)
             }

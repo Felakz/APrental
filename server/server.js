@@ -21,6 +21,36 @@ const pdfDir = path.join(dataDir, 'pdfs');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
 
+function blockedAppsPath() {
+  return path.join(dataDir, 'blocked_apps.json');
+}
+
+function loadBlockedApps() {
+  try {
+    return JSON.parse(fs.readFileSync(blockedAppsPath(), 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveBlockedApps(list) {
+  fs.writeFileSync(blockedAppsPath(), JSON.stringify(list, null, 2));
+}
+
+function broadcastBlockedApps() {
+  const apps = loadBlockedApps();
+  for (const [id, agent] of agents) {
+    if (agent.ws && agent.ws.readyState === 1) {
+      send(agent.ws, { type: 'config.blockedApps', apps });
+    }
+  }
+  for (const ws of wss.clients) {
+    if (ws.role === 'panel' && ws.readyState === 1) {
+      send(ws, { type: 'blockedApps.updated', apps });
+    }
+  }
+}
+
 function todayStr() {
   return new Date().toLocaleDateString('en-CA');
 }
@@ -318,6 +348,31 @@ app.get('/api/location', auth, (req, res) => {
   res.json(loadLocation(date));
 });
 
+app.get('/api/blocked_apps', auth, (req, res) => {
+  res.json(loadBlockedApps());
+});
+
+app.post('/api/blocked_apps', auth, (req, res) => {
+  const { app: pkg } = req.body;
+  if (!pkg || typeof pkg !== 'string') return res.status(400).json({ error: 'App requerida' });
+  const list = loadBlockedApps();
+  if (!list.includes(pkg.trim())) {
+    list.push(pkg.trim());
+    saveBlockedApps(list);
+    broadcastBlockedApps();
+  }
+  res.json({ success: true, blockedApps: list });
+});
+
+app.delete('/api/blocked_apps/:app', auth, (req, res) => {
+  const pkg = req.params.app;
+  let list = loadBlockedApps();
+  list = list.filter((a) => a !== pkg);
+  saveBlockedApps(list);
+  broadcastBlockedApps();
+  res.json({ success: true, blockedApps: list });
+});
+
 app.get('/api/pdfs', auth, (req, res) => {
   let files = [];
   try {
@@ -421,7 +476,8 @@ function handleAgentHello(ws, data) {
     type: 'agent.welcome',
     id: deviceName,
     autoAcceptLive: agents.get(deviceName).autoAcceptLive,
-    keyboardMonitor: agents.get(deviceName).keyboardMonitor
+    keyboardMonitor: agents.get(deviceName).keyboardMonitor,
+    blockedApps: loadBlockedApps()
   });
   broadcastAgents();
 }
@@ -441,6 +497,12 @@ function handleAgentMessage(ws, data) {
   if (agent) agent.lastSeen = Date.now();
 
   switch (data.type) {
+    case 'app_blocked': {
+      for (const pws of panels()) {
+        send(pws, { type: 'app_blocked', agentId, app: data.app, ts: data.ts });
+      }
+      break;
+    }
     case 'activity': {
       const date = todayStr();
       const report = loadReport(date);

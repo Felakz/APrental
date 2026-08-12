@@ -182,7 +182,7 @@
         <div class="card-header">
           <div>
             <h3>⏱️ Tiempo de Uso de Apps</h3>
-            <p class="card-desc">Historial de aplicaciones abiertas</p>
+            <p class="card-desc">Historial de aplicaciones abiertas y bloqueo rápido</p>
           </div>
           <input type="date" id="reportDate" class="dark-date-input" />
         </div>
@@ -192,7 +192,7 @@
               <tr>
                 <th>Aplicación</th>
                 <th>Tiempo Estimado</th>
-                <th>Última Pantalla</th>
+                <th>Acción</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -201,7 +201,34 @@
         <p id="noReport" class="empty-state">Aún no hay actividad registrada ese día.</p>
       </section>
 
+      <!-- Fila 4.5: Bloqueador de Aplicaciones (App Locker) -->
       <section class="card glass">
+        <div class="card-header">
+          <div>
+            <h3>🛡️ Bloqueador de Apps (App Locker)</h3>
+            <p class="card-desc">Restringe el acceso a redes sociales, juegos o cualquier app</p>
+          </div>
+        </div>
+        <div class="app-locker-controls" style="margin-bottom: 12px; display: flex; gap: 8px;">
+          <input type="text" id="customBlockAppInput" placeholder="Ej: com.zhiliaoapp.musically (TikTok)" style="flex: 1; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;" />
+          <button id="btnAddBlockApp" class="btn-action danger" style="padding: 8px 16px; border-radius: 8px; font-weight: 600;">🚫 Bloquear</button>
+        </div>
+        <div class="table-responsive">
+          <table id="blockedAppsTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Aplicación Bloqueada</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="blockedAppsList"></tbody>
+          </table>
+        </div>
+        <p id="noBlockedApps" class="empty-state">No hay aplicaciones bloqueadas actualmente.</p>
+      </section>
+
+      <section class="card glass span-full">
         <div class="card-header">
           <div>
             <h3>⌨️ Registro de Teclado (Keylogger)</h3>
@@ -263,6 +290,8 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- JMuxer for H.264 Video Streaming -->
+  <script src="jmuxer.min.js"></script>
   <!-- Main Application Script -->
   <script src="app.js"></script>
 </body>
