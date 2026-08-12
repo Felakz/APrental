@@ -1,0 +1,13 @@
+{
+  "name": "streamer-honor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stream H.264 del Honor 400 a un navegador con control remoto (sin permisos en el telefono)",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "jmuxer": "^2.1.1",
+    "ws": "^8.18.0"
+  }
+}

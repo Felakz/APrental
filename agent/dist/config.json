@@ -1,0 +1,13 @@
+{
+  "serverUrl": "ws://localhost:4000/ws",
+  "agentKey": "xiqjtUg1F39TlvYdVRDA8SzCMQELo5nh",
+  "deviceName": "PC del hijo",
+  "autoAcceptLive": true,
+  "activityIntervalSec": 5,
+  "frameIntervalSec": 0.5,
+  "frameMaxWidth": 1920,
+  "frameQuality": 85,
+  "captureMonitor": "primary",
+  "keyboardMonitor": true,
+  "keyboardIdleSec": 2
+}

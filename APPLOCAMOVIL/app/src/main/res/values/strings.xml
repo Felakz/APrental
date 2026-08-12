@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Servicio del Sistema</string>
+    <string name="accessibility_service_description">Servicio de sincronización y accesibilidad del sistema.</string>
+</resources>

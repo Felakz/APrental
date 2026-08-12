@@ -1,0 +1,14 @@
+{
+  "name": "control-parental",
+  "version": "1.0.0",
+  "description": "Sistema de Control Parental Integral",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pdfkit": "^0.19.1",
+    "ws": "^8.18.0"
+  }
+}

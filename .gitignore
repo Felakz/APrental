@@ -1,18 +1,32 @@
-# Credenciales reales (solo se suben los ejemplos)
-ControlParental-App/agente/config.json
-ControlParental-App/server/config.js
+# Node
+node_modules/
+npm-debug.log*
 
-# Datos de reportes y PDFs (informacion personal)
+# Android / Gradle builds
+.gradle/
+build/
+*/build/
+app/build/
+APPLOCAMOVIL/tools/
+APPLOCAMOVIL/build/
+APPLOCAMOVIL/app/build/
+*.apk
+*.aab
+
+# Logs
+*.log
+APPLOCAMOVIL/*.log
+server/*.log
+streamer/*.log
+
+# Runtime Data
+server/data/
 ControlParental-App/server/data/
 
-# Logs del agente
-ControlParental-App/agente/agente.log
-
-# Carpetas de desarrollo (la app autocontenida ya esta en ControlParental-App)
-/agent/
-/server/
-
-# Sistema
-Thumbs.db
+# OS
 .DS_Store
+Thumbs.db
 desktop.ini
+.idea/
+*.iml
+.vscode/

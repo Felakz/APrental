@@ -1,0 +1,14 @@
+{
+  "name": "control-parental-server",
+  "version": "1.0.0",
+  "description": "Servidor y panel web de control parental",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pdfkit": "^0.19.1",
+    "ws": "^8.18.0"
+  }
+}

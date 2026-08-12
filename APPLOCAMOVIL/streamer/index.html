@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Control Honor 400</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="topbar">
+  <span class="title">📱 Honor 400 — control en vivo</span>
+  <span id="status" class="status">conectando...</span>
+</div>
+
+<div class="stage">
+  <video id="video" autoplay playsinline></video>
+  <div id="overlay" class="overlay hidden">
+    <div class="msg">Esperando video...</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="btnBack" class="keybtn" title="Atras">⟲</button>
+  <button id="btnHome" class="keybtn" title="Inicio">🏠</button>
+  <button id="btnRecents" class="keybtn" title="Recientes">☰</button>
+  <button id="btnPower" class="keybtn" title="Encender/Apagar">⏻</button>
+  <button id="btnFull" class="keybtn" title="Pantalla completa">⛶</button>
+</div>
+
+<div class="tip">
+  Toca/arrastra sobre el video para controlar el telefono.
+  Manten el dedo para abrir opciones (teclado, volumen).
+</div>
+
+<script src="/jmuxer.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

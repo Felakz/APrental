@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control Parental Pro • Panel de Control</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Vista de Inicio de Sesión -->
+  <div id="loginView" class="view login-wrapper">
+    <div class="login-card glass">
+      <div class="login-header">
+        <div class="shield-icon">🛡️</div>
+        <h1>Control Parental Pro</h1>
+        <p class="subtitle">Panel de supervisión remota y protección familiar</p>
+      </div>
+      <form id="loginForm">
+        <div class="input-group">
+          <label for="password">Contraseña de acceso</label>
+          <input type="password" id="password" placeholder="Introduce tu clave de padre" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn-primary glow">Acceder al Panel</button>
+      </form>
+      <p id="loginError" class="error-msg"></p>
+    </div>
+  </div>
+
+  <!-- Vista Principal del Dashboard -->
+  <div id="mainView" class="view main-layout hidden">
+    <!-- Barra Superior -->
+    <header class="topbar glass">
+      <div class="brand">
+        <span class="brand-badge">🛡️ PRO</span>
+        <h2>Control Parental</h2>
+      </div>
+      <div class="topbar-actions">
+        <span id="globalStatus" class="status-indicator online"><span class="dot"></span> Sistema Activo</span>
+        <button id="logoutBtn" class="btn-ghost">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- Contenido en Cuadrícula -->
+    <main class="dashboard-grid">
+
+      <!-- Fila 1: Dispositivos y Control Inmediato -->
+      <section class="card glass span-full">
+        <div class="card-header">
+          <div>
+            <h3>📱 Dispositivos Monitoreados</h3>
+            <p class="card-desc">Estado en tiempo real y herramientas de control remoto</p>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table id="agentsTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Dispositivo</th>
+                <th>Estado</th>
+                <th>Última Conexión</th>
+                <th>Acciones Rápidas</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="noAgents" class="empty-state">No hay dispositivos enlazados todavía.</p>
+      </section>
+
+      <!-- Fila 2: Control Remoto en Vivo (Visual e Interactivo) -->
+      <section id="remoteControlSection" class="card glass span-full">
+        <div class="card-header">
+          <div>
+            <h3>🎮 Centro de Control Remoto y Pantalla Interactiva</h3>
+            <p class="card-desc">Toca, arrastra o escribe para controlar el teléfono directamente en tiempo real</p>
+          </div>
+          <div class="live-controls-top">
+            <span id="screenStatusBadge" class="status-indicator online"><span class="dot"></span> Transmisión Permanente</span>
+          </div>
+        </div>
+
+        <div class="remote-workbench">
+          <!-- Marco de Teléfono Virtual -->
+          <div class="phone-frame-wrapper">
+            <div class="phone-frame">
+              <div class="phone-notch"></div>
+              <div class="phone-screen-container" id="phoneScreenContainer">
+                <img id="liveImg" class="hidden" />
+                <div id="livePlaceholder" class="screen-placeholder">
+                  <div class="placeholder-icon">📱</div>
+                  <p>Pantalla en reposo</p>
+                  <span>Haz clic en "Transmitir Pantalla" para interactuar</span>
+                </div>
+                <div id="touchFeedback" class="touch-ripple hidden"></div>
+              </div>
+            </div>
+            <!-- Barra de Navegación Virtual Android -->
+            <div class="virtual-navbar">
+              <button id="btnNavBack" class="nav-btn" title="Atrás (Back)">◀</button>
+              <button id="btnNavHome" class="nav-btn" title="Inicio (Home)">⏺</button>
+              <button id="btnNavRecents" class="nav-btn" title="Recientes (App Switch)">⬛</button>
+            </div>
+          </div>
+
+          <!-- Panel de Herramientas de Mando -->
+          <div class="control-actions-panel">
+            <h4>⚙️ Acciones Rápidas de Sistema</h4>
+            <div class="action-buttons-grid">
+              <button id="btnWake" class="btn-action">
+                <span class="btn-icon">💡</span>
+                <span>Encender Pantalla</span>
+              </button>
+              <button id="btnLock" class="btn-action danger">
+                <span class="btn-icon">🔒</span>
+                <span>Bloquear Pantalla</span>
+              </button>
+              <button id="btnVolDown" class="btn-action">
+                <span class="btn-icon">🔉</span>
+                <span>Bajar Volumen</span>
+              </button>
+              <button id="btnVolUp" class="btn-action">
+                <span class="btn-icon">🔊</span>
+                <span>Subir Volumen</span>
+              </button>
+              <button id="btnRequestGps" class="btn-action highlight">
+                <span class="btn-icon">📍</span>
+                <span>Actualizar GPS</span>
+              </button>
+            </div>
+
+            <!-- Inyección de Texto Remoto -->
+            <div class="text-injector-box">
+              <h4>⌨️ Escribir Texto en el Teléfono</h4>
+              <p class="helper-text">Escribe aquí y se escribirá directamente en el campo abierto del móvil.</p>
+              <div class="injector-form">
+                <input type="text" id="remoteTextInput" placeholder="Escribe un mensaje o búsqueda..." />
+                <button id="btnSendText" class="btn-secondary">Enviar Texto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Fila 3: Mapa GPS en Vivo -->
+      <section class="card glass span-full">
+        <div class="card-header">
+          <div>
+            <h3>📍 Ubicación GPS en Tiempo Real</h3>
+            <p class="card-desc">Rastreo de posición satelital y mapa interactivo</p>
+          </div>
+          <div class="date-picker-wrap">
+            <input type="date" id="locationDate" class="dark-date-input" />
+          </div>
+        </div>
+        <div id="leafletMap" class="map-view-box"></div>
+        <div class="table-responsive" style="margin-top: 14px;">
+          <table id="locationTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Dispositivo</th>
+                <th>Coordenadas</th>
+                <th>Precisión</th>
+                <th>Navegación Externa</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="noLocation" class="empty-state">No hay registros de ubicación para la fecha seleccionada.</p>
+      </section>
+
+      <!-- Fila 4: Reporte de Apps & Actividad de Teclado -->
+      <section class="card glass">
+        <div class="card-header">
+          <div>
+            <h3>⏱️ Tiempo de Uso de Apps</h3>
+            <p class="card-desc">Historial de aplicaciones abiertas</p>
+          </div>
+          <input type="date" id="reportDate" class="dark-date-input" />
+        </div>
+        <div class="table-responsive">
+          <table id="reportTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Aplicación</th>
+                <th>Tiempo Estimado</th>
+                <th>Última Pantalla</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="noReport" class="empty-state">Aún no hay actividad registrada ese día.</p>
+      </section>
+
+      <section class="card glass">
+        <div class="card-header">
+          <div>
+            <h3>⌨️ Registro de Teclado (Keylogger)</h3>
+            <p class="card-desc">Texto escrito en mensajería y búsquedas</p>
+          </div>
+          <input type="date" id="typingDate" class="dark-date-input" />
+        </div>
+        <div class="table-responsive">
+          <table id="typingTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>App</th>
+                <th>Texto Detectado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="noTyping" class="empty-state">No hay registros de teclado para esa fecha.</p>
+      </section>
+
+      <!-- Fila 5: Reportes PDF Diarios -->
+      <section class="card glass span-full">
+        <div class="card-header">
+          <div>
+            <h3>📄 Reportes Diarios en PDF</h3>
+            <p class="card-desc">Descarga informes estructurados con la actividad diaria consolidada</p>
+          </div>
+          <button id="pdfTodayBtn" class="btn-primary small">📥 Descargar Reporte de Hoy</button>
+        </div>
+        <div class="table-responsive">
+          <table id="pdfTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Fecha del Reporte</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="noPdf" class="empty-state">No hay PDFs generados todavía.</p>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal de Texto Detallado -->
+  <div id="typingModal" class="modal hidden">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3 id="typingModalTitle">Detalle del Registro de Texto</h3>
+        <button id="typingModalClose" class="btn-close">✕</button>
+      </div>
+      <div class="typing-log" id="typingLog"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Main Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
