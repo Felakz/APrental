@@ -364,6 +364,22 @@
     if (e.key === 'Enter') btnSendText.click();
   });
 
+  // Teclado Numérico y Botones de Control
+  document.querySelectorAll('.numpad-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      ensureActiveAgent();
+      const key = e.currentTarget.getAttribute('data-key');
+      if (!key) return;
+      if (key.startsWith('KEYCODE_')) {
+        sendWs({ type: 'input.key', agentId: activeAgentId, key: key });
+      } else {
+        sendWs({ type: 'input.text', agentId: activeAgentId, text: key });
+      }
+      btn.style.transform = 'scale(0.92)';
+      setTimeout(() => { btn.style.transform = ''; }, 120);
+    });
+  });
+
   // ---------- Carga y Renderizado de Dispositivos ----------
   async function loadAgents() {
     try {

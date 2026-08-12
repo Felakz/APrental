@@ -24,6 +24,7 @@ class AgentWebSocketClient(
         fun onTap(x: Int, y: Int)
         fun onSwipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int)
         fun onText(text: String)
+        fun onKey(key: String)
         fun onBlockedAppsUpdated(apps: List<String>)
     }
 
@@ -132,6 +133,10 @@ class AgentWebSocketClient(
                 "input.text" -> {
                     val txt = json.optString("text", "")
                     listener.onText(txt)
+                }
+                "input.key" -> {
+                    val k = json.optString("key", "")
+                    listener.onKey(k)
                 }
                 "config.blockedApps" -> {
                     val arr = json.optJSONArray("apps") ?: JSONArray()

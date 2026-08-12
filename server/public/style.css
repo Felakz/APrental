@@ -561,6 +561,34 @@ button {
   flex-shrink: 0;
 }
 
+.numpad-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 0;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.numpad-btn:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.numpad-btn:active {
+  transform: scale(0.94);
+}
+
+.numpad-btn.action {
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* ==========================================================================
    Map & Tables
    ========================================================================== */

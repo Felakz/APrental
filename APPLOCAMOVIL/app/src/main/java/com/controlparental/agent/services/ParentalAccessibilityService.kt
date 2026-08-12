@@ -201,7 +201,52 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
             }
             focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            Log.i("ParentalAccService", "Texto inyectado remotamente: $text")
+            Log.i("ParentalAccService", "Texto inyectado en foco: $text")
+        } else {
+            val found = findAndSetText(rootNode, text)
+            Log.i("ParentalAccService", "Texto inyectado recursivo ($found): $text")
+        }
+    }
+
+    private fun findAndSetText(node: AccessibilityNodeInfo?, text: String): Boolean {
+        if (node == null) return false
+        if (node.isEditable) {
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (findAndSetText(child, text)) return true
+        }
+        return false
+    }
+
+    override fun onKey(key: String) {
+        Log.i("ParentalAccService", "Tecla recibida: $key")
+        when (key) {
+            "enter", "KEYCODE_ENTER" -> {
+                val rootNode = rootInActiveWindow ?: return
+                val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                focused?.performAction(AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY)
+            }
+            "del", "backspace", "KEYCODE_DEL" -> {
+                val rootNode = rootInActiveWindow ?: return
+                val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                if (focused != null && focused.text != null && focused.text.isNotEmpty()) {
+                    val newText = focused.text.substring(0, focused.text.length - 1)
+                    val args = Bundle().apply {
+                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+                    }
+                    focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                }
+            }
+            else -> {
+                if (key.length == 1) {
+                    onText(key)
+                }
+            }
         }
     }
 
