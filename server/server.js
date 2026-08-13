@@ -651,12 +651,30 @@ function handleAgentMessage(ws, data) {
       const date = todayStr();
       const typing = loadTyping(date);
       if (!typing[agentId]) typing[agentId] = [];
-      typing[agentId].push({
-        app: data.app,
-        title: data.title,
-        text: data.text,
-        ts: data.ts
-      });
+
+      const list = typing[agentId];
+      const last = list[list.length - 1];
+      const nowTs = data.ts || new Date().toISOString();
+      const lastTime = last ? new Date(last.ts).getTime() : 0;
+      const currTime = new Date(nowTs).getTime();
+      const timeDiff = Math.abs(currTime - lastTime);
+
+      // Si es la misma app dentro de 6 segundos y es una continuacion de escritura, consolidar
+      if (last && last.app === data.app && timeDiff < 6000 && (data.text.startsWith(last.text) || last.text.startsWith(data.text))) {
+        if (data.text.length >= last.text.length) {
+          last.text = data.text;
+        }
+        last.ts = nowTs;
+        last.title = data.title || last.title;
+      } else {
+        list.push({
+          app: data.app,
+          title: data.title,
+          text: data.text,
+          ts: nowTs
+        });
+      }
+
       saveTyping(date, typing);
       for (const pws of panels()) {
         send(pws, { type: 'typing.updated', agentId, typing: data });

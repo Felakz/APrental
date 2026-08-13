@@ -412,9 +412,14 @@
         <div class="card-header">
           <div>
             <h3>⌨️ Registro de Teclado (Keylogger)</h3>
-            <p class="card-desc">Texto escrito en mensajería y búsquedas</p>
+            <p class="card-desc">Texto escrito en mensajería y búsquedas consolidado por app</p>
           </div>
-          <input type="date" id="typingDate" class="dark-date-input" />
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <select id="typingAppFilter" class="dark-date-input" style="cursor: pointer; max-width: 190px;">
+              <option value="">📱 Todas las apps</option>
+            </select>
+            <input type="date" id="typingDate" class="dark-date-input" />
+          </div>
         </div>
         <div class="table-responsive">
           <table id="typingTable" class="modern-table">

