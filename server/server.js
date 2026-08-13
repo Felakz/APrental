@@ -37,6 +37,66 @@ function saveBlockedApps(list) {
   fs.writeFileSync(blockedAppsPath(), JSON.stringify(list, null, 2));
 }
 
+function geofencesPath() {
+  return path.join(dataDir, 'geofences.json');
+}
+
+function loadGeofences() {
+  try {
+    return JSON.parse(fs.readFileSync(geofencesPath(), 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveGeofences(list) {
+  fs.writeFileSync(geofencesPath(), JSON.stringify(list, null, 2));
+}
+
+function broadcastGeofences() {
+  const geofences = loadGeofences();
+  for (const [id, agent] of agents) {
+    if (agent.ws && agent.ws.readyState === 1) {
+      send(agent.ws, { type: 'config.geofences', geofences });
+    }
+  }
+  for (const ws of panels()) {
+    send(ws, { type: 'geofences.updated', geofences });
+  }
+}
+
+function appusagePath(dateStr) {
+  return path.join(dataDir, `appusage-${dateStr}.json`);
+}
+
+function loadAppusage(dateStr) {
+  try {
+    return JSON.parse(fs.readFileSync(appusagePath(dateStr), 'utf8'));
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveAppusage(dateStr, data) {
+  fs.writeFileSync(appusagePath(dateStr), JSON.stringify(data, null, 2));
+}
+
+function geofenceBreachPath(dateStr) {
+  return path.join(dataDir, `geofence_breach-${dateStr}.json`);
+}
+
+function loadGeofenceBreach(dateStr) {
+  try {
+    return JSON.parse(fs.readFileSync(geofenceBreachPath(dateStr), 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveGeofenceBreach(dateStr, data) {
+  fs.writeFileSync(geofenceBreachPath(dateStr), JSON.stringify(data, null, 2));
+}
+
 function broadcastBlockedApps() {
   const apps = loadBlockedApps();
   for (const [id, agent] of agents) {
@@ -373,6 +433,41 @@ app.delete('/api/blocked_apps/:app', auth, (req, res) => {
   res.json({ success: true, blockedApps: list });
 });
 
+app.get('/api/geofences', auth, (req, res) => {
+  res.json(loadGeofences());
+});
+
+app.post('/api/geofences', auth, (req, res) => {
+  const geofence = req.body;
+  if (!geofence || typeof geofence !== 'object') return res.status(400).json({ error: 'Geofence requerida' });
+  const list = loadGeofences();
+  const id = geofence.id || crypto.randomBytes(6).toString('hex');
+  const newGeofence = { ...geofence, id };
+  list.push(newGeofence);
+  saveGeofences(list);
+  broadcastGeofences();
+  res.json({ success: true, geofence: newGeofence, geofences: list });
+});
+
+app.delete('/api/geofences/:id', auth, (req, res) => {
+  const id = req.params.id;
+  let list = loadGeofences();
+  list = list.filter((g) => g.id !== id);
+  saveGeofences(list);
+  broadcastGeofences();
+  res.json({ success: true, geofences: list });
+});
+
+app.get('/api/appusage', auth, (req, res) => {
+  const date = req.query.date || todayStr();
+  res.json(loadAppusage(date));
+});
+
+app.get('/api/geofence_breach', auth, (req, res) => {
+  const date = req.query.date || todayStr();
+  res.json(loadGeofenceBreach(date));
+});
+
 app.get('/api/pdfs', auth, (req, res) => {
   let files = [];
   try {
@@ -597,6 +692,44 @@ function handleAgentMessage(ws, data) {
       }
       break;
     }
+    case 'appusage': {
+      const date = todayStr();
+      const usage = loadAppusage(date);
+      if (!usage[agentId]) usage[agentId] = [];
+      usage[agentId].push({
+        app: data.app,
+        title: data.title,
+        usage: data.usage,
+        ts: data.ts
+      });
+      saveAppusage(date, usage);
+      for (const pws of panels()) {
+        send(pws, { type: 'appusage.updated', agentId, appusage: data });
+      }
+      break;
+    }
+    case 'geofence.breach': {
+      const date = todayStr();
+      const breaches = loadGeofenceBreach(date);
+      const geofences = loadGeofences();
+      const zone = geofences.find(g => g.id === data.geofenceId);
+      const breach = {
+        agentId,
+        geofenceId: data.geofenceId,
+        zone: data.zone || (zone ? zone.name : data.geofenceId),
+        action: data.action || 'exit',
+        lat: data.lat,
+        lon: data.lon,
+        distance: data.distance || null,
+        ts: data.ts || Date.now()
+      };
+      breaches.push(breach);
+      saveGeofenceBreach(date, breaches);
+      for (const pws of panels()) {
+        send(pws, { type: 'geofence.breach', agentId, ...breach });
+      }
+      break;
+    }
   }
 }
 
@@ -646,6 +779,19 @@ function handlePanelMessage(ws, data) {
       const agent = agents.get(data.agentId);
       if (agent && agent.ws && agent.ws.readyState === 1) {
         send(agent.ws, { type: 'config.keyboardMonitor', value: true });
+      }
+      break;
+    }
+    case 'config.geofences': {
+      const geofences = data.geofences || loadGeofences();
+      saveGeofences(geofences);
+      for (const [id, agent] of agents) {
+        if (agent.ws && agent.ws.readyState === 1) {
+          send(agent.ws, { type: 'config.geofences', geofences });
+        }
+      }
+      for (const pws of panels()) {
+        send(pws, { type: 'geofences.updated', geofences });
       }
       break;
     }

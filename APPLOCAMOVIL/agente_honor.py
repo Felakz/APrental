@@ -173,8 +173,9 @@ def start_live(request_id):
         live_event.set()
         # Despertar pantalla si esta en reposo
         adb(["shell", "input", "keyevent", "KEYCODE_WAKEUP"])
-        send({"type": "live.accepted", "requestId": request_id})
-        log("start_live: aceptado requestId=%s (pantalla despierta)" % request_id)
+        if request_id:
+            send({"type": "live.accepted", "requestId": request_id})
+        log("start_live: captura auto-iniciada (streaming permanente)")
         threading.Thread(target=capture_loop, daemon=True).start()
     else:
         log("start_live: ya activo (ignorado)")
@@ -311,6 +312,11 @@ def handle_message(data):
                         "speed": 0,
                         "ts": datetime.now().isoformat()
                     })
+        elif cmd == "keep_awake":
+            # Mantener pantalla encendida siempre (prevenir Dozing)
+            adb(["shell", "svc", "power", "stayon", "true"])
+            adb(["shell", "settings", "put", "system", "screen_off_timeout", "2147483647"])
+            log("keep_awake: pantalla configurada para no apagarse")
 
 
 def receiver(ws):
@@ -353,6 +359,8 @@ def connect():
     ws_conn = ws
     threading.Thread(target=receiver, args=(ws,), daemon=True).start()
     threading.Thread(target=monitor_loop, args=(ws,), daemon=True).start()
+    # Auto-iniciar captura inmediatamente (streaming permanente)
+    start_live(None)
 
 
 def main():

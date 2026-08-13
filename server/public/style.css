@@ -407,6 +407,14 @@ button {
   pointer-events: auto;
 }
 
+.phone-screen-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: auto;
+  background: #000;
+}
+
 .screen-placeholder {
   text-align: center;
   padding: 20px;
@@ -703,16 +711,23 @@ button {
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: rgba(0, 0, 0, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
+  justify-content: flex-start;
+  padding: 12px;
   border-radius: 32px;
   animation: fadeInPin 0.25s ease-out;
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.pin-pad-overlay::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes fadeInPin {
@@ -824,6 +839,245 @@ button {
 .pin-key.pin-enter:hover {
   background: rgba(59, 130, 246, 0.45);
   color: #93c5fd;
+}
+
+/* Acciones extra del PIN pad */
+.pin-extra-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 220px;
+  margin-top: 14px;
+}
+
+.pin-extra-btn {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.12);
+  transition: all 0.2s ease;
+}
+
+.unlock-btn {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.unlock-btn:hover {
+  background: rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.awake-btn {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.awake-btn:hover {
+  background: rgba(245, 158, 11, 0.35);
+  transform: translateY(-1px);
+}
+
+.awake-btn.active {
+  background: rgba(245, 158, 11, 0.5);
+  color: #fff;
+  border-color: #f59e0b;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+/* Tabs de modo del overlay */
+.unlock-tabs {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 260px;
+  margin-bottom: 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.unlock-tab {
+  flex: 1;
+  padding: 7px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.unlock-tab:hover {
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.05);
+}
+
+.unlock-tab.active {
+  background: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.unlock-mode {
+  width: 100%;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Patrón 3x3 */
+.pattern-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  padding: 16px;
+  width: 100%;
+  max-width: 200px;
+}
+
+.pattern-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  justify-self: center;
+  align-self: center;
+}
+
+.pattern-dot:hover {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.6);
+  transform: scale(1.1);
+}
+
+.pattern-dot.selected {
+  background: rgba(59, 130, 246, 0.7);
+  border-color: #3b82f6;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.6);
+  transform: scale(1.15);
+}
+
+.pattern-display {
+  font-size: 12px;
+  color: #60a5fa;
+  margin: 10px 0;
+  text-align: center;
+  min-height: 18px;
+}
+
+.pattern-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 220px;
+}
+
+/* QWERTY */
+.qwerty-display {
+  width: 100%;
+  max-width: 260px;
+  margin-bottom: 8px;
+}
+
+.qwerty-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.qwerty-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.qwerty-keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.qwerty-row {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.qwerty-key {
+  min-width: 22px;
+  height: 34px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.qwerty-key:hover {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.qwerty-key:active {
+  transform: scale(0.9);
+  background: rgba(59, 130, 246, 0.4);
+}
+
+.qwerty-key.wide {
+  min-width: 36px;
+  font-size: 14px;
+}
+
+.qwerty-key.accent {
+  background: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.4);
+  min-width: 56px;
+}
+
+.qwerty-key.active {
+  background: rgba(245, 158, 11, 0.4);
+  border-color: #f59e0b;
+  color: #fbbf24;
 }
 
 /* Botón flotante para abrir el PIN Pad */

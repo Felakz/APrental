@@ -24,9 +24,16 @@
   const noAgents = document.getElementById('noAgents');
   const screenStatusBadge = document.getElementById('screenStatusBadge');
   const liveImg = document.getElementById('liveImg');
+  const liveVideo = document.getElementById('liveVideo');
   const livePlaceholder = document.getElementById('livePlaceholder');
   const phoneScreenContainer = document.getElementById('phoneScreenContainer');
   const touchFeedback = document.getElementById('touchFeedback');
+
+  // H.264 Streaming via JMuxer
+  let h264Ws = null;
+  let jmuxer = null;
+  const STREAMER_PHONE_W = 720;
+  const STREAMER_PHONE_H = 1280;
 
   // Prevenir arrastre de imagen del navegador
   liveImg.setAttribute('draggable', 'false');
@@ -102,6 +109,7 @@
     loadAgents();
     loadAll();
     connectWs();
+    connectH264();
   }
 
   function showLogin() {
@@ -168,6 +176,63 @@
     }
   }
 
+  // ---------- H.264 Streaming (JMuxer) ----------
+  function isH264Active() {
+    return jmuxer && liveVideo && !liveVideo.classList.contains('hidden');
+  }
+
+  function connectH264() {
+    if (h264Ws && h264Ws.readyState === WebSocket.OPEN) return;
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      h264Ws = new WebSocket(`${proto}//${location.host}:4001/ws`);
+      h264Ws.binaryType = 'arraybuffer';
+
+      h264Ws.onopen = () => console.log('[H264] Conectado al streamer');
+
+      h264Ws.onmessage = (ev) => {
+        const data = ev.data;
+        if (typeof data === 'string') return;
+        if (!jmuxer) {
+          jmuxer = new JMuxer({
+            node: 'liveVideo',
+            mode: 'video',
+            flushingTime: 0,
+            fps: 30,
+            debug: false
+          });
+          liveVideo.classList.remove('hidden');
+          liveImg.classList.add('hidden');
+          livePlaceholder.classList.add('hidden');
+          screenStatusBadge.innerHTML = '<span class="dot"></span> H.264 en Vivo';
+          screenStatusBadge.className = 'status-indicator online';
+        }
+        jmuxer.feed({ video: new Uint8Array(data) });
+      };
+
+      h264Ws.onclose = () => {
+        console.log('[H264] Desconectado, reconectando en 3s...');
+        if (jmuxer) {
+          jmuxer = null;
+          liveVideo.classList.add('hidden');
+          if (!isLiveActive) livePlaceholder.classList.remove('hidden');
+        }
+        setTimeout(connectH264, 3000);
+      };
+
+      h264Ws.onerror = () => h264Ws.close();
+    } catch (e) {
+      console.log('[H264] Error de conexion:', e.message);
+      setTimeout(connectH264, 5000);
+    }
+  }
+
+  function sendH264(msg) {
+    if (h264Ws && h264Ws.readyState === WebSocket.OPEN) {
+      h264Ws.send(JSON.stringify(msg));
+    }
+  }
+
   function sendWs(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(obj));
@@ -181,6 +246,9 @@
       case 'agents.updated':
         renderAgents(msg.agents);
         break;
+      case 'live.requesting':
+        // Streaming permanente - no mostrar estado de solicitud
+        break;
       case 'live.accepted':
       case 'live.frame':
         isLiveActive = true;
@@ -192,11 +260,28 @@
         livePlaceholder.classList.add('hidden');
         liveImg.classList.remove('hidden');
         break;
+      case 'live.denied':
+        isLiveActive = false;
+        screenStatusBadge.innerHTML = '<span class="dot" style="background:#f59e0b"></span> Reconectando...';
+        screenStatusBadge.className = 'status-indicator';
+        liveImg.classList.add('hidden');
+        liveVideo.classList.add('hidden');
+        livePlaceholder.classList.remove('hidden');
+        setTimeout(autoStartLive, 3000);
+        break;
+      case 'live.error':
+        isLiveActive = false;
+        screenStatusBadge.innerHTML = '<span class="dot" style="background:#ef4444"></span> Reconectando...';
+        screenStatusBadge.className = 'status-indicator';
+        liveImg.classList.add('hidden');
+        liveVideo.classList.add('hidden');
+        livePlaceholder.classList.remove('hidden');
+        setTimeout(autoStartLive, 3000);
+        break;
       case 'live.stopped':
         isLiveActive = false;
         liveImg.classList.add('hidden');
         livePlaceholder.classList.remove('hidden');
-        // Auto-reintento para mantener la transmision siempre activa
         setTimeout(autoStartLive, 2000);
         break;
       case 'location.updated':
@@ -217,6 +302,18 @@
         break;
       case 'app_blocked':
         console.warn('App bloqueada en el teléfono:', msg.app);
+        break;
+      case 'geofence.breach':
+        if (geofenceBreachDate.value === todayStr()) loadGeofenceBreaches();
+        break;
+      case 'geofences.updated':
+        loadGeofences();
+        break;
+      case 'appusage.updated':
+        loadAppUsage();
+        break;
+      case 'error':
+        console.error('[WS] Error del servidor:', msg.message);
         break;
     }
   }
@@ -239,10 +336,12 @@
     const relX = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
     const relY = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
 
-    const phoneX = Math.round(relX * DEVICE_WIDTH);
-    const phoneY = Math.round(relY * DEVICE_HEIGHT);
+    const activeW = isH264Active() ? STREAMER_PHONE_W : DEVICE_WIDTH;
+    const activeH = isH264Active() ? STREAMER_PHONE_H : DEVICE_HEIGHT;
+    const phoneX = Math.round(relX * activeW);
+    const phoneY = Math.round(relY * activeH);
 
-    return { phoneX, phoneY, clientX: ev.clientX - rect.left, clientY: ev.clientY - rect.top };
+    return { phoneX, phoneY, clientX: ev.clientX - rect.left, clientY: ev.clientY - top };
   }
 
   function showTouchFeedback(x, y) {
@@ -274,24 +373,18 @@
     const dist = Math.hypot(dx, dy);
 
     if (dist < 30) {
-      // Tap instantaneo
-      sendWs({
-        type: 'input.tap',
-        agentId: activeAgentId,
-        x: touchStartPos.phoneX,
-        y: touchStartPos.phoneY
-      });
+      if (isH264Active()) {
+        sendH264({ type: 'tap', x: touchStartPos.phoneX, y: touchStartPos.phoneY });
+      } else {
+        sendWs({ type: 'input.tap', agentId: activeAgentId, x: touchStartPos.phoneX, y: touchStartPos.phoneY });
+      }
     } else {
-      // Deslizamiento rapido calibrado para Android
-      sendWs({
-        type: 'input.swipe',
-        agentId: activeAgentId,
-        x1: touchStartPos.phoneX,
-        y1: touchStartPos.phoneY,
-        x2: endCoords.phoneX,
-        y2: endCoords.phoneY,
-        duration: Math.max(120, Math.min(250, duration))
-      });
+      const dur = Math.max(120, Math.min(250, duration));
+      if (isH264Active()) {
+        sendH264({ type: 'swipe', x1: touchStartPos.phoneX, y1: touchStartPos.phoneY, x2: endCoords.phoneX, y2: endCoords.phoneY, dur });
+      } else {
+        sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: touchStartPos.phoneX, y1: touchStartPos.phoneY, x2: endCoords.phoneX, y2: endCoords.phoneY, duration: dur });
+      }
     }
     touchStartPos = null;
   }
@@ -309,41 +402,24 @@
     }
   }
 
+  function sendCommand(command) {
+    if (isH264Active()) {
+      const KEYCODE_MAP = { back: 4, home: 3, recents: 187, wake: 224, lock: 26, volume_up: 24, volume_down: 25 };
+      const keyCode = KEYCODE_MAP[command];
+      if (keyCode) sendH264({ type: 'key', keyCode });
+    } else {
+      sendWs({ type: 'command.send', agentId: activeAgentId, command });
+    }
+  }
+
   // ---------- Acciones de Navegación y Botones ----------
-  btnNavBack.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'back' });
-  });
-
-  btnNavHome.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'home' });
-  });
-
-  btnNavRecents.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'recents' });
-  });
-
-  btnWake.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'wake' });
-  });
-
-  btnLock.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'lock' });
-  });
-
-  btnVolDown.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'volume_down' });
-  });
-
-  btnVolUp.addEventListener('click', () => {
-    ensureActiveAgent();
-    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'volume_up' });
-  });
+  btnNavBack.addEventListener('click', () => { ensureActiveAgent(); sendCommand('back'); });
+  btnNavHome.addEventListener('click', () => { ensureActiveAgent(); sendCommand('home'); });
+  btnNavRecents.addEventListener('click', () => { ensureActiveAgent(); sendCommand('recents'); });
+  btnWake.addEventListener('click', () => { ensureActiveAgent(); sendCommand('wake'); });
+  btnLock.addEventListener('click', () => { ensureActiveAgent(); sendCommand('lock'); });
+  btnVolDown.addEventListener('click', () => { ensureActiveAgent(); sendCommand('volume_down'); });
+  btnVolUp.addEventListener('click', () => { ensureActiveAgent(); sendCommand('volume_up'); });
 
   btnRequestGps.addEventListener('click', () => {
     ensureActiveAgent();
@@ -356,7 +432,14 @@
     ensureActiveAgent();
     const text = remoteTextInput.value.trim();
     if (!text) return;
-    sendWs({ type: 'input.text', agentId: activeAgentId, text: text });
+    if (isH264Active()) {
+      for (const ch of text) {
+        const code = ch === ' ' ? 62 : (ch === '@' ? 77 : (ch === '.' ? 55 : (ch.toUpperCase().charCodeAt(0) - 65 + 29)));
+        sendH264({ type: 'key', keyCode: code });
+      }
+    } else {
+      sendWs({ type: 'input.text', agentId: activeAgentId, text });
+    }
     remoteTextInput.value = '';
   });
 
@@ -370,10 +453,16 @@
       ensureActiveAgent();
       const key = e.currentTarget.getAttribute('data-key');
       if (!key) return;
-      if (key.startsWith('KEYCODE_')) {
-        sendWs({ type: 'input.key', agentId: activeAgentId, key: key });
+      if (isH264Active()) {
+        const KEYCODE_MAP = { '0': 7, '1': 8, '2': 9, '3': 10, '4': 11, '5': 12, '6': 13, '7': 14, '8': 15, '9': 16, 'KEYCODE_DEL': 67, 'KEYCODE_SPACE': 62, 'KEYCODE_ENTER': 66 };
+        const kc = KEYCODE_MAP[key];
+        if (kc) sendH264({ type: 'key', keyCode: kc });
       } else {
-        sendWs({ type: 'input.text', agentId: activeAgentId, text: key });
+        if (key.startsWith('KEYCODE_')) {
+          sendWs({ type: 'input.key', agentId: activeAgentId, key });
+        } else {
+          sendWs({ type: 'input.text', agentId: activeAgentId, text: key });
+        }
       }
       btn.style.transform = 'scale(0.92)';
       setTimeout(() => { btn.style.transform = ''; }, 120);
@@ -547,19 +636,43 @@
       const data = await api(`/api/activity?date=${reportDate.value}`);
       reportTable.innerHTML = '';
       let total = 0;
+
       for (const [dev, list] of Object.entries(data)) {
+        // Agrupar eventos por app y calcular duracion real
+        const appMap = {};
         list.forEach((item) => {
+          const app = item.app || 'desconocido';
+          if (!appMap[app]) appMap[app] = [];
+          appMap[app].push(item);
+        });
+
+        // Calcular duracion por app (suma de gaps entre eventos consecutivos)
+        const aggregated = Object.entries(appMap).map(([app, events]) => {
+          events.sort((a, b) => new Date(a.ts) - new Date(b.ts));
+          let durationMs = 0;
+          for (let i = 1; i < events.length; i++) {
+            const gap = new Date(events[i].ts) - new Date(events[i - 1].ts);
+            if (gap < 300000) durationMs += gap; // ignorar gaps >5min (app en background)
+          }
+          // Si hay un solo evento, estimar 5s de uso
+          if (events.length === 1) durationMs = 5000;
+          return { app, durationSec: Math.round(durationMs / 1000), count: events.length };
+        });
+
+        aggregated.sort((a, b) => b.durationSec - a.durationSec);
+
+        aggregated.forEach((item) => {
           total++;
           const tr = document.createElement('tr');
-          const mins = Math.round((item.durationSec || 0) / 60);
+          const mins = Math.round(item.durationSec / 60);
           const isBlocked = currentBlockedApps.includes(item.app);
           const blockBtnHtml = isBlocked
             ? `<button class="btn-secondary toggle-block-btn" data-app="${item.app}" data-action="unblock" style="padding:4px 8px; font-size:11px; color:#10b981;">✅ Desbloquear</button>`
             : `<button class="btn-action danger toggle-block-btn" data-app="${item.app}" data-action="block" style="padding:4px 8px; font-size:11px;">🚫 Bloquear</button>`;
-          
+
           tr.innerHTML = `
             <td><strong>${item.app}</strong></td>
-            <td><span class="badge-tag">${mins} min (${item.durationSec || 0}s)</span></td>
+            <td><span class="badge-tag">${mins} min (${item.durationSec}s)</span></td>
             <td>${blockBtnHtml}</td>
           `;
           reportTable.appendChild(tr);
@@ -690,6 +803,136 @@
     } catch (e) {}
   }
 
+  // ---------- Geocercas ----------
+  const geofenceName = document.getElementById('geofenceName');
+  const geofenceLat = document.getElementById('geofenceLat');
+  const geofenceLon = document.getElementById('geofenceLon');
+  const geofenceRadius = document.getElementById('geofenceRadius');
+  const btnAddGeofence = document.getElementById('btnAddGeofence');
+  const geofenceList = document.getElementById('geofenceList');
+  const noGeofences = document.getElementById('noGeofences');
+  const geofenceBreachDate = document.getElementById('geofenceBreachDate');
+  const geofenceBreachList = document.getElementById('geofenceBreachList');
+  const noGeofenceBreaches = document.getElementById('noGeofenceBreaches');
+
+  async function loadGeofences() {
+    try {
+      const zones = await api('/api/geofences');
+      geofenceList.innerHTML = '';
+      if (!zones || !zones.length) {
+        noGeofences.classList.remove('hidden');
+        return;
+      }
+      noGeofences.classList.add('hidden');
+      zones.forEach((z, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>📍 ${escapeHtml(z.name)}</strong></td>
+          <td><code>${z.lat.toFixed(5)}, ${z.lon.toFixed(5)}</code></td>
+          <td><span class="badge-tag">±${z.radius}m</span></td>
+          <td>—</td>
+          <td>
+            <button class="btn-secondary delete-geofence-btn" data-id="${z.id || i}" style="padding:4px 10px; font-size:11px; color:#ef4444;">🗑️ Eliminar</button>
+          </td>
+        `;
+        geofenceList.appendChild(tr);
+      });
+      document.querySelectorAll('.delete-geofence-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.currentTarget.getAttribute('data-id');
+          try {
+            await api(`/api/geofences/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            loadGeofences();
+          } catch (err) { alert('Error: ' + err.message); }
+        });
+      });
+    } catch (e) {}
+  }
+
+  if (btnAddGeofence) {
+    btnAddGeofence.addEventListener('click', async () => {
+      const name = geofenceName.value.trim();
+      const lat = parseFloat(geofenceLat.value);
+      const lon = parseFloat(geofenceLon.value);
+      const radius = parseFloat(geofenceRadius.value) || 100;
+      if (!name || isNaN(lat) || isNaN(lon)) {
+        alert('Completa nombre, latitud y longitud');
+        return;
+      }
+      try {
+        await api('/api/geofences', {
+          method: 'POST',
+          body: JSON.stringify({ name, lat, lon, radius })
+        });
+        geofenceName.value = '';
+        geofenceLat.value = '';
+        geofenceLon.value = '';
+        geofenceRadius.value = '100';
+        loadGeofences();
+      } catch (err) { alert('Error: ' + err.message); }
+    });
+  }
+
+  async function loadGeofenceBreaches() {
+    try {
+      const data = await api(`/api/geofence_breach?date=${geofenceBreachDate.value}`);
+      geofenceBreachList.innerHTML = '';
+      let total = 0;
+      for (const [dev, list] of Object.entries(data)) {
+        list.slice().reverse().forEach((item) => {
+          total++;
+          const tr = document.createElement('tr');
+          const time = item.ts ? new Date(item.ts).toLocaleTimeString() : '—';
+          const action = item.action === 'enter' ? '🟢 Entró' : '🔴 Salió';
+          tr.innerHTML = `
+            <td>${time}</td>
+            <td><span class="badge-tag">${escapeHtml(item.zone)}</span></td>
+            <td>${action}</td>
+            <td><code>${item.lat ? item.lat.toFixed(5) : '—'}, ${item.lon ? item.lon.toFixed(5) : '—'}</code></td>
+            <td><span class="badge-tag">${item.distance ? Math.round(item.distance) + 'm' : '—'}</span></td>
+          `;
+          geofenceBreachList.appendChild(tr);
+        });
+      }
+      noGeofenceBreaches.classList.toggle('hidden', total > 0);
+    } catch (e) {}
+  }
+
+  // ---------- Uso de Apps (UsageStats) ----------
+  async function loadAppUsage() {
+    try {
+      const data = await api(`/api/appusage?date=${reportDate.value}`);
+      // Merge con datos de activity si existen
+      const existingApps = {};
+      for (const [dev, list] of Object.entries(data)) {
+        list.forEach((item) => {
+          const app = item.app || 'desconocido';
+          if (!existingApps[app]) existingApps[app] = 0;
+          existingApps[app] += item.durationMs || 0;
+        });
+      }
+      // Actualizar tabla de reporte si tiene datos de UsageStats
+      if (Object.keys(existingApps).length > 0) {
+        const rows = reportTable.querySelectorAll('tr');
+        rows.forEach((row) => {
+          const appName = row.querySelector('strong');
+          if (appName) {
+            const name = appName.textContent.trim();
+            const ms = existingApps[name];
+            if (ms) {
+              const badge = row.querySelector('.badge-tag');
+              if (badge) {
+                const mins = Math.round(ms / 60000);
+                const secs = Math.round((ms % 60000) / 1000);
+                badge.textContent = `${mins} min (${secs}s)`;
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {}
+  }
+
   pdfTodayBtn.addEventListener('click', () => {
     window.open(`/api/pdf/${todayStr()}`, '_blank');
   });
@@ -701,21 +944,74 @@
   reportDate.addEventListener('change', loadReport);
   locationDate.addEventListener('change', loadLocation);
   typingDate.addEventListener('change', loadTyping);
+  if (geofenceBreachDate) geofenceBreachDate.addEventListener('change', loadGeofenceBreaches);
 
   function escapeHtml(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // ---------- PIN Pad Overlay (teclado encima de la pantalla en negro) ----------
-  const pinPadOverlay = document.getElementById('pinPadOverlay');
+  // ---------- Centro de Desbloqueo: PIN / Patrón / QWERTY ----------
+  const unlockOverlay = document.getElementById('unlockOverlay');
   const pinPadToggle = document.getElementById('pinPadToggle');
   const pinPadClose = document.getElementById('pinPadClose');
   const pinDots = document.getElementById('pinDots');
+  const btnAutoUnlock = document.getElementById('btnAutoUnlock');
+  const btnKeepAwake = document.getElementById('btnKeepAwake');
+  const patternGrid = document.getElementById('patternGrid');
+  const patternSequence = document.getElementById('patternSequence');
+  const patternClear = document.getElementById('patternClear');
+  const patternConfirm = document.getElementById('patternConfirm');
+  const qwertyInput = document.getElementById('qwertyInput');
+
+  let currentMode = 'pin';
   let pinBuffer = [];
+  let patternBuffer = [];
+  let qwertyShift = false;
   const PIN_MAX = 12;
 
+  const DIGIT_TO_KEYCODE = {
+    '0': 'KEYCODE_0', '1': 'KEYCODE_1', '2': 'KEYCODE_2',
+    '3': 'KEYCODE_3', '4': 'KEYCODE_4', '5': 'KEYCODE_5',
+    '6': 'KEYCODE_6', '7': 'KEYCODE_7', '8': 'KEYCODE_8',
+    '9': 'KEYCODE_9'
+  };
+
+  const CHAR_TO_KEYCODE = {};
+  'abcdefghijklmnopqrstuvwxyz'.split('').forEach((c) => {
+    CHAR_TO_KEYCODE[c] = 'KEYCODE_' + c.toUpperCase();
+  });
+  CHAR_TO_KEYCODE[' '] = 'KEYCODE_SPACE';
+  CHAR_TO_KEYCODE['.'] = 'KEYCODE_PERIOD';
+  CHAR_TO_KEYCODE['@'] = 'KEYCODE_AT';
+
+  const PATTERN_COORDS = {
+    '1': { x: 420, y: 800 },  '2': { x: 632, y: 800 },  '3': { x: 844, y: 800 },
+    '4': { x: 420, y: 1200 }, '5': { x: 632, y: 1200 }, '6': { x: 844, y: 1200 },
+    '7': { x: 420, y: 1600 }, '8': { x: 632, y: 1600 }, '9': { x: 844, y: 1600 }
+  };
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ---- Tabs de modo ----
+  document.querySelectorAll('.unlock-tab').forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      const mode = e.currentTarget.getAttribute('data-mode');
+      if (mode === currentMode) return;
+      currentMode = mode;
+      document.querySelectorAll('.unlock-tab').forEach(t => t.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      document.querySelectorAll('.unlock-mode').forEach(m => {
+        m.classList.add('hidden');
+        m.classList.remove('active');
+      });
+      const target = document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1));
+      if (target) { target.classList.remove('hidden'); target.classList.add('active'); }
+    });
+  });
+
+  // ---- MODO PIN ----
   function updatePinDisplay() {
-    pinDots.textContent = pinBuffer.map(() => '●').join('');
+    if (pinDots) pinDots.textContent = pinBuffer.map(() => '●').join('');
   }
 
   function pinSendKey(value) {
@@ -728,42 +1024,166 @@
       }
     } else if (value === 'enter') {
       sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
-      // Limpiar buffer despues de enviar
       setTimeout(() => { pinBuffer = []; updatePinDisplay(); }, 300);
     } else if (/^[0-9]$/.test(value) && pinBuffer.length < PIN_MAX) {
       pinBuffer.push(value);
       updatePinDisplay();
-      sendWs({ type: 'input.text', agentId: activeAgentId, text: value });
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[value] });
     }
-  }
-
-  if (pinPadToggle) {
-    pinPadToggle.addEventListener('click', () => {
-      pinPadOverlay.classList.toggle('hidden');
-      pinPadToggle.classList.toggle('active');
-      if (!pinPadOverlay.classList.contains('hidden')) {
-        pinBuffer = [];
-        updatePinDisplay();
-      }
-    });
-  }
-
-  if (pinPadClose) {
-    pinPadClose.addEventListener('click', () => {
-      pinPadOverlay.classList.add('hidden');
-      pinPadToggle.classList.remove('active');
-    });
   }
 
   document.querySelectorAll('.pin-key').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const val = e.currentTarget.getAttribute('data-pin');
       if (val) pinSendKey(val);
-      // Feedback visual
       btn.style.transform = 'scale(0.9)';
       setTimeout(() => { btn.style.transform = ''; }, 100);
     });
   });
+
+  // ---- MODO PATRÓN 3x3 ----
+  function updatePatternDisplay() {
+    if (patternSequence) {
+      patternSequence.textContent = patternBuffer.length > 0
+        ? 'Patrón: ' + patternBuffer.join(' → ')
+        : 'Toca los puntos en orden';
+    }
+  }
+
+  if (patternGrid) {
+    patternGrid.querySelectorAll('.pattern-dot').forEach((dot) => {
+      dot.addEventListener('click', (e) => {
+        const num = e.currentTarget.getAttribute('data-dot');
+        if (!patternBuffer.includes(num)) {
+          patternBuffer.push(num);
+          e.currentTarget.classList.add('selected');
+          updatePatternDisplay();
+          const coord = PATTERN_COORDS[num];
+          if (coord) {
+            sendWs({ type: 'input.tap', agentId: activeAgentId, x: coord.x, y: coord.y });
+          }
+        }
+      });
+    });
+  }
+
+  if (patternClear) {
+    patternClear.addEventListener('click', () => {
+      patternBuffer = [];
+      if (patternGrid) patternGrid.querySelectorAll('.pattern-dot').forEach(d => d.classList.remove('selected'));
+      updatePatternDisplay();
+    });
+  }
+
+  if (patternConfirm) {
+    patternConfirm.addEventListener('click', () => {
+      if (patternBuffer.length < 4) { alert('Dibuja al menos 4 puntos'); return; }
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
+      setTimeout(() => {
+        patternBuffer = [];
+        if (patternGrid) patternGrid.querySelectorAll('.pattern-dot').forEach(d => d.classList.remove('selected'));
+        updatePatternDisplay();
+      }, 500);
+    });
+  }
+
+  // ---- MODO QWERTY ----
+  function qwertySendChar(char) {
+    ensureActiveAgent();
+    if (char === 'back') {
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_DEL' });
+      if (qwertyInput) qwertyInput.value = qwertyInput.value.slice(0, -1);
+    } else if (char === 'enter') {
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
+      if (qwertyInput) qwertyInput.value = '';
+    } else if (char === 'space') {
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_SPACE' });
+      if (qwertyInput) qwertyInput.value += ' ';
+    } else if (char === 'shift') {
+      qwertyShift = !qwertyShift;
+      document.querySelectorAll('.qwerty-key[data-key="shift"]').forEach(k => k.classList.toggle('active', qwertyShift));
+    } else if (CHAR_TO_KEYCODE[char.toLowerCase()]) {
+      const toSend = qwertyShift ? char.toUpperCase() : char.toLowerCase();
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: CHAR_TO_KEYCODE[toSend.toLowerCase()] });
+      if (qwertyInput) qwertyInput.value += toSend;
+      if (qwertyShift && /^[a-zA-Z]$/.test(char)) {
+        qwertyShift = false;
+        document.querySelectorAll('.qwerty-key[data-key="shift"]').forEach(k => k.classList.remove('active'));
+      }
+    } else {
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_' + char.toUpperCase() });
+      if (qwertyInput) qwertyInput.value += char;
+    }
+  }
+
+  document.querySelectorAll('.qwerty-key').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const key = e.currentTarget.getAttribute('data-key');
+      if (key) qwertySendChar(key);
+      btn.style.transform = 'scale(0.9)';
+      setTimeout(() => { btn.style.transform = ''; }, 100);
+    });
+  });
+
+  if (qwertyInput) {
+    qwertyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); qwertySendChar('enter'); }
+      else if (e.key === 'Backspace') { qwertySendChar('back'); }
+    });
+  }
+
+  // ---- Desbloqueo Automático ----
+  async function autoUnlock() {
+    ensureActiveAgent();
+    const pin = prompt('Ingresa el PIN del telefono (solo numeros):');
+    if (!pin || !/^\d{4,12}$/.test(pin)) {
+      if (pin !== null) alert('PIN invalido. Usa solo numeros (4-12 digitos).');
+      return;
+    }
+    sendWs({ type: 'command.send', agentId: activeAgentId, command: 'wake' });
+    await sleep(600);
+    sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: 632, y1: 2400, x2: 632, y2: 1000, duration: 300 });
+    await sleep(800);
+    for (const digit of pin) {
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[digit] });
+      await sleep(150);
+    }
+    await sleep(300);
+    sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
+    pinBuffer = pin.split('');
+    updatePinDisplay();
+  }
+
+  // ---- Abrir / Cerrar Overlay ----
+  if (pinPadToggle) {
+    pinPadToggle.addEventListener('click', () => {
+      unlockOverlay.classList.toggle('hidden');
+      pinPadToggle.classList.toggle('active');
+      if (!unlockOverlay.classList.contains('hidden')) {
+        pinBuffer = []; patternBuffer = [];
+        updatePinDisplay(); updatePatternDisplay();
+        if (patternGrid) patternGrid.querySelectorAll('.pattern-dot').forEach(d => d.classList.remove('selected'));
+        if (qwertyInput) qwertyInput.value = '';
+      }
+    });
+  }
+
+  if (pinPadClose) {
+    pinPadClose.addEventListener('click', () => {
+      unlockOverlay.classList.add('hidden');
+      pinPadToggle.classList.remove('active');
+    });
+  }
+
+  if (btnAutoUnlock) btnAutoUnlock.addEventListener('click', autoUnlock);
+
+  if (btnKeepAwake) {
+    btnKeepAwake.addEventListener('click', () => {
+      ensureActiveAgent();
+      sendWs({ type: 'command.send', agentId: activeAgentId, command: 'keep_awake' });
+      btnKeepAwake.classList.toggle('active');
+    });
+  }
 
   function loadAll() {
     loadAgents();
@@ -772,6 +1192,7 @@
     loadLocation();
     loadTyping();
     loadPdfs();
+    loadGeofences();
   }
 
   // Auto-login con token existente

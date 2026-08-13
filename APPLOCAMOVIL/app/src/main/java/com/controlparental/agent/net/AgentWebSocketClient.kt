@@ -26,6 +26,7 @@ class AgentWebSocketClient(
         fun onText(text: String)
         fun onKey(key: String)
         fun onBlockedAppsUpdated(apps: List<String>)
+        fun onGeofencesUpdated(zones: List<JSONObject>)
     }
 
     private val client = OkHttpClient.Builder()
@@ -143,6 +144,12 @@ class AgentWebSocketClient(
                     val list = mutableListOf<String>()
                     for (i in 0 until arr.length()) list.add(arr.getString(i))
                     listener.onBlockedAppsUpdated(list)
+                }
+                "config.geofences" -> {
+                    val arr = json.optJSONArray("zones") ?: JSONArray()
+                    val zones = mutableListOf<JSONObject>()
+                    for (i in 0 until arr.length()) zones.add(arr.getJSONObject(i))
+                    listener.onGeofencesUpdated(zones)
                 }
                 "command" -> {
                     val cmd = json.optString("command", "")

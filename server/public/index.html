@@ -93,35 +93,137 @@
               <div class="phone-notch"></div>
               <div class="phone-screen-container" id="phoneScreenContainer">
                 <img id="liveImg" class="hidden" />
+                <video id="liveVideo" autoplay playsinline class="hidden"></video>
                 <div id="livePlaceholder" class="screen-placeholder">
                   <div class="placeholder-icon">📱</div>
-                  <p>Pantalla en reposo</p>
-                  <span>Haz clic en "Transmitir Pantalla" para interactuar</span>
+                  <p>Esperando conexión del teléfono...</p>
+                  <span>La transmisión se iniciará automáticamente</span>
                 </div>
                 <div id="touchFeedback" class="touch-ripple hidden"></div>
 
-                <!-- Overlay PIN Pad (se muestra encima de la pantalla cuando está en negro) -->
-                <div id="pinPadOverlay" class="pin-pad-overlay hidden">
+                <!-- Overlay de Desbloqueo (PIN / Patrón / QWERTY) -->
+                <div id="unlockOverlay" class="pin-pad-overlay hidden">
                   <div class="pin-pad-header">
-                    <span class="pin-pad-title">🔐 Ingresar PIN</span>
-                    <button id="pinPadClose" class="pin-pad-close-btn" title="Cerrar teclado">✕</button>
+                    <span class="pin-pad-title">🔐 Centro de Desbloqueo</span>
+                    <button id="pinPadClose" class="pin-pad-close-btn" title="Cerrar">✕</button>
                   </div>
-                  <div class="pin-display" id="pinDisplay">
-                    <span class="pin-dots" id="pinDots"></span>
+
+                  <!-- Tabs de modo -->
+                  <div class="unlock-tabs">
+                    <button class="unlock-tab active" data-mode="pin">🔢 PIN</button>
+                    <button class="unlock-tab" data-mode="pattern">🔵 Patrón</button>
+                    <button class="unlock-tab" data-mode="qwerty">⌨️ QWERTY</button>
                   </div>
-                  <div class="pin-pad-grid">
-                    <button class="pin-key" data-pin="1">1</button>
-                    <button class="pin-key" data-pin="2">2</button>
-                    <button class="pin-key" data-pin="3">3</button>
-                    <button class="pin-key" data-pin="4">4</button>
-                    <button class="pin-key" data-pin="5">5</button>
-                    <button class="pin-key" data-pin="6">6</button>
-                    <button class="pin-key" data-pin="7">7</button>
-                    <button class="pin-key" data-pin="8">8</button>
-                    <button class="pin-key" data-pin="9">9</button>
-                    <button class="pin-key pin-special" data-pin="back">⌫</button>
-                    <button class="pin-key" data-pin="0">0</button>
-                    <button class="pin-key pin-special pin-enter" data-pin="enter">⏎</button>
+
+                  <!-- MODO PIN -->
+                  <div id="modePin" class="unlock-mode active">
+                    <div class="pin-display" id="pinDisplay">
+                      <span class="pin-dots" id="pinDots"></span>
+                    </div>
+                    <div class="pin-pad-grid">
+                      <button class="pin-key" data-pin="1">1</button>
+                      <button class="pin-key" data-pin="2">2</button>
+                      <button class="pin-key" data-pin="3">3</button>
+                      <button class="pin-key" data-pin="4">4</button>
+                      <button class="pin-key" data-pin="5">5</button>
+                      <button class="pin-key" data-pin="6">6</button>
+                      <button class="pin-key" data-pin="7">7</button>
+                      <button class="pin-key" data-pin="8">8</button>
+                      <button class="pin-key" data-pin="9">9</button>
+                      <button class="pin-key pin-special" data-pin="back">⌫</button>
+                      <button class="pin-key" data-pin="0">0</button>
+                      <button class="pin-key pin-special pin-enter" data-pin="enter">⏎</button>
+                    </div>
+                  </div>
+
+                  <!-- MODO PATRÓN 3x3 -->
+                  <div id="modePattern" class="unlock-mode hidden">
+                    <div class="pattern-hint">Toca los puntos en orden para dibujar el patrón</div>
+                    <div class="pattern-grid" id="patternGrid">
+                      <div class="pattern-dot" data-dot="1"></div>
+                      <div class="pattern-dot" data-dot="2"></div>
+                      <div class="pattern-dot" data-dot="3"></div>
+                      <div class="pattern-dot" data-dot="4"></div>
+                      <div class="pattern-dot" data-dot="5"></div>
+                      <div class="pattern-dot" data-dot="6"></div>
+                      <div class="pattern-dot" data-dot="7"></div>
+                      <div class="pattern-dot" data-dot="8"></div>
+                      <div class="pattern-dot" data-dot="9"></div>
+                    </div>
+                    <div class="pattern-display" id="patternDisplay">
+                      <span id="patternSequence"></span>
+                    </div>
+                    <div class="pattern-actions">
+                      <button id="patternClear" class="pin-key pin-special" style="flex:1;">Limpiar</button>
+                      <button id="patternConfirm" class="pin-key pin-enter" style="flex:1;">⏎ Confirmar</button>
+                    </div>
+                  </div>
+
+                  <!-- MODO QWERTY -->
+                  <div id="modeQwerty" class="unlock-mode hidden">
+                    <div class="qwerty-display" id="qwertyDisplay">
+                      <input type="text" id="qwertyInput" class="qwerty-input" placeholder="Escribe contraseña..." autocomplete="off" />
+                    </div>
+                    <div class="qwerty-keyboard">
+                      <div class="qwerty-row">
+                        <button class="qwerty-key" data-key="q">q</button>
+                        <button class="qwerty-key" data-key="w">w</button>
+                        <button class="qwerty-key" data-key="e">e</button>
+                        <button class="qwerty-key" data-key="r">r</button>
+                        <button class="qwerty-key" data-key="t">t</button>
+                        <button class="qwerty-key" data-key="y">y</button>
+                        <button class="qwerty-key" data-key="u">u</button>
+                        <button class="qwerty-key" data-key="i">i</button>
+                        <button class="qwerty-key" data-key="o">o</button>
+                        <button class="qwerty-key" data-key="p">p</button>
+                      </div>
+                      <div class="qwerty-row">
+                        <button class="qwerty-key" data-key="a">a</button>
+                        <button class="qwerty-key" data-key="s">s</button>
+                        <button class="qwerty-key" data-key="d">d</button>
+                        <button class="qwerty-key" data-key="f">f</button>
+                        <button class="qwerty-key" data-key="g">g</button>
+                        <button class="qwerty-key" data-key="h">h</button>
+                        <button class="qwerty-key" data-key="j">j</button>
+                        <button class="qwerty-key" data-key="k">k</button>
+                        <button class="qwerty-key" data-key="l">l</button>
+                      </div>
+                      <div class="qwerty-row">
+                        <button class="qwerty-key wide" data-key="shift">⇧</button>
+                        <button class="qwerty-key" data-key="z">z</button>
+                        <button class="qwerty-key" data-key="x">x</button>
+                        <button class="qwerty-key" data-key="c">c</button>
+                        <button class="qwerty-key" data-key="v">v</button>
+                        <button class="qwerty-key" data-key="b">b</button>
+                        <button class="qwerty-key" data-key="n">n</button>
+                        <button class="qwerty-key" data-key="m">m</button>
+                        <button class="qwerty-key wide" data-key="back">⌫</button>
+                      </div>
+                      <div class="qwerty-row">
+                        <button class="qwerty-key" data-key="1">1</button>
+                        <button class="qwerty-key" data-key="2">2</button>
+                        <button class="qwerty-key" data-key="3">3</button>
+                        <button class="qwerty-key" data-key="4">4</button>
+                        <button class="qwerty-key" data-key="5">5</button>
+                        <button class="qwerty-key" data-key="6">6</button>
+                        <button class="qwerty-key" data-key="7">7</button>
+                        <button class="qwerty-key" data-key="8">8</button>
+                        <button class="qwerty-key" data-key="9">9</button>
+                        <button class="qwerty-key" data-key="0">0</button>
+                      </div>
+                      <div class="qwerty-row">
+                        <button class="qwerty-key" data-key="@">@</button>
+                        <button class="qwerty-key wide" data-key="space">_</button>
+                        <button class="qwerty-key" data-key=".">.</button>
+                        <button class="qwerty-key wide accent" data-key="enter">⏎ Enter</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Acciones extra (comunes a todos los modos) -->
+                  <div class="pin-extra-actions">
+                    <button id="btnAutoUnlock" class="pin-extra-btn unlock-btn">🔓 Desbloqueo Automático</button>
+                    <button id="btnKeepAwake" class="pin-extra-btn awake-btn">☀️ Siempre Encendida</button>
                   </div>
                 </div>
               </div>
@@ -224,6 +326,64 @@
           </table>
         </div>
         <p id="noLocation" class="empty-state">No hay registros de ubicación para la fecha seleccionada.</p>
+      </section>
+
+      <!-- Fila 3b: Geocercas (Zonas Seguras) -->
+      <section class="card glass span-full">
+        <div class="card-header">
+          <div>
+            <h3>🗺️ Geocercas (Zonas Seguras)</h3>
+            <p class="card-desc">Define zonas seguras y recibe alertas cuando el dispositivo salga del área</p>
+          </div>
+        </div>
+        <div class="geofence-form" style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+          <input type="text" id="geofenceName" placeholder="Nombre (ej: Casa)" style="flex: 1; min-width: 120px; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;" />
+          <input type="number" id="geofenceLat" placeholder="Latitud" step="0.00001" style="flex: 1; min-width: 120px; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;" />
+          <input type="number" id="geofenceLon" placeholder="Longitud" step="0.00001" style="flex: 1; min-width: 120px; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;" />
+          <input type="number" id="geofenceRadius" placeholder="Radio (m)" value="100" style="width: 100px; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff;" />
+          <button id="btnAddGeofence" class="btn-action highlight" style="padding: 8px 16px;">📍 Agregar Zona</button>
+        </div>
+        <div class="table-responsive">
+          <table id="geofenceTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Zona</th>
+                <th>Coordenadas</th>
+                <th>Radio</th>
+                <th>Último Evento</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="geofenceList"></tbody>
+          </table>
+        </div>
+        <p id="noGeofences" class="empty-state">No hay geocercas definidas. Agrega una zona segura arriba.</p>
+      </section>
+
+      <!-- Fila 3c: Alertas de Geocercas -->
+      <section class="card glass span-full">
+        <div class="card-header">
+          <div>
+            <h3>🚨 Alertas de Geocercas</h3>
+            <p class="card-desc">Historial de entradas y salidas de zonas seguras</p>
+          </div>
+          <input type="date" id="geofenceBreachDate" class="dark-date-input" />
+        </div>
+        <div class="table-responsive">
+          <table id="geofenceBreachTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Zona</th>
+                <th>Evento</th>
+                <th>Ubicación</th>
+                <th>Distancia</th>
+              </tr>
+            </thead>
+            <tbody id="geofenceBreachList"></tbody>
+          </table>
+        </div>
+        <p id="noGeofenceBreaches" class="empty-state">No hay alertas de geocercas para esa fecha.</p>
       </section>
 
       <!-- Fila 4: Reporte de Apps & Actividad de Teclado (Lado a Lado) -->

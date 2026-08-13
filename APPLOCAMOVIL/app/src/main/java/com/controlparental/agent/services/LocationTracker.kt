@@ -21,6 +21,11 @@ class LocationTracker(
     private var lastSentLocation: Location? = null
     private var lastSentTimeMs: Long = 0L
 
+    // Geocercas: mapa de nombre -> (lat, lon, radiusMeters, lastState: inside?)
+    private val geofences = mutableMapOf<String, GeofenceZone>()
+
+    data class GeofenceZone(val id: String, val name: String, val lat: Double, val lon: Double, val radius: Float, var wasInside: Boolean? = null)
+
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
@@ -86,6 +91,50 @@ class LocationTracker(
         }
     }
 
+    fun updateGeofences(zones: List<JSONObject>) {
+        geofences.clear()
+        for (z in zones) {
+            val id = z.optString("id", "")
+            val name = z.optString("name", "zona_${geofences.size}")
+            val lat = z.optDouble("lat", 0.0)
+            val lon = z.optDouble("lon", 0.0)
+            val radius = z.optDouble("radius", 100.0).toFloat()
+            if (lat != 0.0 && lon != 0.0) {
+                geofences[name] = GeofenceZone(id, name, lat, lon, radius)
+                Log.i("LocationTracker", "Geocerca registrada: $name ($lat,$lon r=${radius}m)")
+            }
+        }
+        Log.i("LocationTracker", "Total geocercas: ${geofences.size}")
+    }
+
+    private fun checkGeofences(loc: Location) {
+        for ((name, zone) in geofences) {
+            val zoneLoc = Location("").apply {
+                latitude = zone.lat
+                longitude = zone.lon
+            }
+            val dist = loc.distanceTo(zoneLoc)
+            val isInside = dist <= zone.radius
+
+            if (zone.wasInside != null && isInside != zone.wasInside) {
+                val action = if (isInside) "enter" else "exit"
+                val breachJson = JSONObject().apply {
+                    put("type", "geofence.breach")
+                    put("geofenceId", zone.id)
+                    put("zone", name)
+                    put("action", action)
+                    put("lat", loc.latitude)
+                    put("lon", loc.longitude)
+                    put("distance", dist.toDouble())
+                    put("ts", isoFormat.format(Date()))
+                }
+                onLocationUpdate(breachJson)
+                Log.i("LocationTracker", "Geocerca '$name': $action (dist=${dist}m, radio=${zone.radius}m)")
+            }
+            zone.wasInside = isInside
+        }
+    }
+
     override fun onLocationChanged(location: Location) {
         dispatchLocation(location, force = false)
     }
@@ -96,13 +145,15 @@ class LocationTracker(
         if (!force && last != null) {
             val dist = loc.distanceTo(last)
             val elapsed = now - lastSentTimeMs
-            // Filtrar duplicados: solo enviar si se movio mas de 15 metros o paso mas de 60 segundos
             if (dist < 15f && elapsed < 60000L) {
                 return
             }
         }
         lastSentLocation = loc
         lastSentTimeMs = now
+
+        // Verificar geocercas siempre (incluso si no envia ubicacion)
+        checkGeofences(loc)
 
         try {
             val json = JSONObject().apply {

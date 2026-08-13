@@ -4,7 +4,9 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
+import com.controlparental.agent.receivers.AdminReceiver
 import android.graphics.Bitmap
 import android.graphics.Path
 import android.media.AudioManager
@@ -35,6 +37,7 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
 
     private var wsClient: AgentWebSocketClient? = null
     private var locationTracker: LocationTracker? = null
+    private var usageStatsMonitor: UsageStatsMonitor? = null
     private var lastPackage: String? = null
     private var lastTypedText: String? = null
     private var isLiveActive = false
@@ -58,6 +61,19 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         locationTracker = LocationTracker(this) { locJson ->
             wsClient?.send(locJson)
         }.apply { start() }
+
+        // Iniciar monitoreo de uso de apps
+        usageStatsMonitor = UsageStatsMonitor(this) { usageJson ->
+            wsClient?.send(usageJson)
+        }.apply { start() }
+
+        // Consultar UsageStats cada 5 minutos
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                usageStatsMonitor?.queryAndReport()
+                mainHandler.postDelayed(this, 300000L)
+            }
+        }, 300000L)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -128,6 +144,7 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         instance = null
         isLiveActive = false
         locationTracker?.stop()
+        usageStatsMonitor?.stop()
         wsClient?.stop()
         Log.i("ParentalAccService", "Servicio de Accesibilidad destruido.")
     }
@@ -146,6 +163,11 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         blockedPackages.clear()
         blockedPackages.addAll(apps)
         Log.i("ParentalAccService", "Lista de apps bloqueadas sincronizada: $blockedPackages")
+    }
+
+    override fun onGeofencesUpdated(zones: List<JSONObject>) {
+        locationTracker?.updateGeofences(zones)
+        Log.i("ParentalAccService", "Geocercas actualizadas: ${zones.size} zonas")
     }
 
     override fun onLiveRequest(requestId: String) {
@@ -292,6 +314,48 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
                 val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val dir = if (command == "volume_up") AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
                 am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, dir, AudioManager.FLAG_SHOW_UI)
+            }
+            "keep_awake" -> {
+                // Mantener pantalla encendida siempre
+                try {
+                    Runtime.getRuntime().exec(arrayOf("su", "-c", "settings put system screen_off_timeout 2147483647"))
+                } catch (e: Exception) {
+                    Log.w("ParentalAccService", "keep_awake sin root: intentando via settings")
+                }
+                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                @Suppress("DEPRECATION")
+                val wl = pm?.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "ParentalApp:KeepAwake")
+                wl?.acquire(600000) // 10 minutos
+                Log.i("ParentalAccService", "keep_awake: pantalla configurada para no apagarse")
+            }
+            "wipe" -> {
+                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                try {
+                    dpm?.wipeData(0)
+                    Log.i("ParentalAccService", "wipe: borrado de fabrica iniciado")
+                } catch (e: Exception) {
+                    Log.e("ParentalAccService", "wipe error: ${e.message}")
+                }
+            }
+            "disable_camera" -> {
+                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                val admin = ComponentName(this, AdminReceiver::class.java)
+                try {
+                    dpm?.setCameraDisabled(admin, true)
+                    Log.i("ParentalAccService", "disable_camera: camara deshabilitada")
+                } catch (e: Exception) {
+                    Log.e("ParentalAccService", "disable_camera error: ${e.message}")
+                }
+            }
+            "enable_camera" -> {
+                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                val admin = ComponentName(this, AdminReceiver::class.java)
+                try {
+                    dpm?.setCameraDisabled(admin, false)
+                    Log.i("ParentalAccService", "enable_camera: camara habilitada")
+                } catch (e: Exception) {
+                    Log.e("ParentalAccService", "enable_camera error: ${e.message}")
+                }
             }
         }
     }
