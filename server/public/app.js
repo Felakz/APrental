@@ -206,7 +206,9 @@
         fps: 30,
         debug: false
       });
+      liveVideo.muted = true;
       liveVideo.classList.remove('hidden');
+      liveVideo.play().catch(() => {});
       liveImg.classList.add('hidden');
       livePlaceholder.classList.add('hidden');
       screenStatusBadge.innerHTML = '<span class="dot"></span> H.264 en Vivo';
