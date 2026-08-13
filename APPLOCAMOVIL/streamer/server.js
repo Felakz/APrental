@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
-const { WebSocketServer } = require('ws');
+const { WebSocketServer, WebSocket } = require('ws');
 
 function log(msg) {
   try {
@@ -16,9 +16,22 @@ const PORT = 4001;
 const ADB = 'C:\\Users\\Lenovo\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\\scrcpy-win64-v4.1\\adb.exe';
 const DEVICE = '100.122.200.118:5555';
 
+// Configuracion del backend (relay)
+const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
+let relayConfig = { serverUrl: 'wss://control-parental-honor.onrender.com/ws', agentKey: '' };
+try {
+  const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+  const cfg = JSON.parse(raw);
+  if (cfg.serverUrl) relayConfig.serverUrl = cfg.serverUrl;
+  if (cfg.agentKey) relayConfig.agentKey = cfg.agentKey;
+} catch (e) {
+  console.log('[stream] aviso: no se pudo leer config.json, usando valores por defecto');
+}
+
 let proc = null;          // proceso adb screenrecord
 let restartTimer = null;
 let reconnectTimer = null;
+let relay = null;         // socket WebSocket hacia el backend
 
 // ---------- helper adb ----------
 function adbRun(args) {
@@ -52,11 +65,16 @@ async function startCapture() {
     // Buscar y guardar SPS/PPS de los primeros chunks para nuevos clientes
     findAndCacheHeaders(chunk);
 
-    // Transmitir chunks directamente a todos los clientes WebSocket
+    // Transmitir chunks a los clientes WebSocket locales
     for (const client of clients) {
       if (client.readyState === 1) {
         try { client.send(chunk); } catch (e) {}
       }
+    }
+
+    // Transmitir chunks al backend para relay a los paneles remotos
+    if (relay && relay.readyState === 1) {
+      try { relay.send(chunk); } catch (e) {}
     }
   });
 
@@ -123,6 +141,71 @@ function scheduleRestart() {
   }, 1000);
 }
 
+// ---------- relay al backend ----------
+function connectRelay() {
+  if (relay && (relay.readyState === 0 || relay.readyState === 1)) return;
+  console.log('[relay] conectando a backend...');
+  relay = new WebSocket(relayConfig.serverUrl);
+
+  relay.on('open', () => {
+    console.log('[relay] conectado al backend, autenticando...');
+    relay.send(JSON.stringify({ type: 'streamer.hello', agentKey: relayConfig.agentKey, streamerId: 'honor400' }));
+    ensureConnected().then(() => {
+      if (!proc) startCapture();
+    });
+    // Si ya tenemos SPS/PPS cacheados, enviarlos al backend
+    sendCachedHeaders();
+  });
+
+  relay.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch (e) { return; }
+    handleRelayMessage(msg);
+  });
+
+  relay.on('close', () => {
+    console.log('[relay] desconectado del backend, reconectando en 5s...');
+    relay = null;
+    if (clients.size === 0) {
+      if (proc) { proc.kill(); proc = null; }
+    }
+    scheduleRelayReconnect();
+  });
+
+  relay.on('error', (err) => {
+    console.log('[relay] error:', (err && err.message) || err);
+    try { relay.close(); } catch (e) {}
+  });
+}
+
+function scheduleRelayReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connectRelay, 5000);
+}
+
+function sendCachedHeaders() {
+  if (relay && relay.readyState === 1 && (cache.sps || cache.pps)) {
+    const data = {};
+    if (cache.sps) data.sps = cache.sps.toString('base64');
+    if (cache.pps) data.pps = cache.pps.toString('base64');
+    relay.send(JSON.stringify({ type: 'h264.headers', ...data }));
+  }
+}
+
+function handleRelayMessage(msg) {
+  switch (msg.type) {
+    case 'h264.headers.request':
+      sendCachedHeaders();
+      break;
+    case 'h264.touch':
+      handleCommand(msg.data || msg);
+      break;
+    case 'h264.stop':
+      if (proc) { proc.kill(); proc = null; }
+      break;
+  }
+}
+
 // ---------- websocket ----------
 const clients = new Set();
 
@@ -150,8 +233,9 @@ function onWsConnect(ws) {
   ws.on('close', () => {
     clients.delete(ws);
     console.log('[ws] cliente desconectado (' + clients.size + ')');
-    if (clients.size === 0) {
-      // nadie viendo: parar captura para ahorrar recursos
+    // Parar captura solo si no hay nadie mirando (ni local ni relay)
+    const relayActive = relay && relay.readyState === 1;
+    if (clients.size === 0 && !relayActive) {
       if (proc) { proc.kill(); proc = null; }
     }
   });

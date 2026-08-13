@@ -1102,6 +1102,38 @@ button {
   justify-content: center;
 }
 
+/* Botón flotante de desbloqueo automático (fuera del overlay) */
+.auto-unlock-fab {
+  position: fixed;
+  bottom: 76px;
+  left: 16px;
+  z-index: 9999;
+  background: rgba(16, 185, 129, 0.9);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  font-size: 20px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.5);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auto-unlock-fab:hover {
+  background: rgba(5, 150, 105, 0.95);
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+}
+
+.auto-unlock-fab:active {
+  transform: scale(0.9);
+}
+
 .pin-pad-toggle-btn:hover {
   background: rgba(37, 99, 235, 0.95);
   transform: scale(1.05);

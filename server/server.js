@@ -331,6 +331,14 @@ function panels() {
   return out;
 }
 
+function streamers() {
+  const out = [];
+  for (const ws of wss.clients) {
+    if (ws.role === 'streamer') out.push(ws);
+  }
+  return out;
+}
+
 function send(ws, obj) {
   if (ws && ws.readyState === 1) {
     try {
@@ -495,7 +503,17 @@ wss.on('connection', (ws) => {
     ws.isAlive = true;
   });
 
-  ws.on('message', (raw) => {
+  ws.on('message', (raw, isBinary) => {
+    if (isBinary) {
+      if (ws.role === 'streamer') {
+        for (const pws of panels()) {
+          if (pws.readyState === 1) {
+            try { pws.send(raw); } catch (e) {}
+          }
+        }
+      }
+      return;
+    }
     let data;
     try {
       data = JSON.parse(raw);
@@ -506,12 +524,14 @@ wss.on('connection', (ws) => {
 
     if (!ws.role) {
       if (type === 'agent.hello') return handleAgentHello(ws, data);
+      if (type === 'streamer.hello') return handleStreamerHello(ws, data);
       if (type === 'panel.hello' || type === 'parent.hello') return handlePanelHello(ws, data);
       return ws.close();
     }
 
     if (ws.role === 'agent') return handleAgentMessage(ws, data);
     if (ws.role === 'panel') return handlePanelMessage(ws, data);
+    if (ws.role === 'streamer') return handleStreamerMessage(ws, data);
   });
 
   ws.on('close', () => {
@@ -525,6 +545,11 @@ wss.on('connection', (ws) => {
     } else if (ws.role === 'panel') {
       for (const [agentId, set] of watchers) {
         if (set.has(ws)) removeWatcher(agentId, ws);
+      }
+    } else if (ws.role === 'streamer') {
+      // Avisar a los paneles que el streamer H.264 se desconecto
+      for (const pws of panels()) {
+        send(pws, { type: 'h264.offline' });
       }
     }
   });
@@ -584,6 +609,36 @@ function handlePanelHello(ws, data) {
   }
   ws.role = 'panel';
   broadcastAgents();
+  // Pedir SPS/PPS al streamer para que este panel pueda decodificar H.264
+  for (const sws of streamers()) {
+    if (sws.readyState === 1) send(sws, { type: 'h264.headers.request' });
+  }
+}
+
+function handleStreamerHello(ws, data) {
+  if (!data.agentKey || data.agentKey !== config.agentKey) {
+    send(ws, { type: 'error', message: 'Clave de agente invalida' });
+    return ws.close();
+  }
+  ws.role = 'streamer';
+  ws.streamerId = data.streamerId || 'streamer-h264';
+  send(ws, { type: 'streamer.welcome', id: ws.streamerId });
+  // Avisar a todos los paneles que hay H.264 disponible
+  for (const pws of panels()) {
+    send(pws, { type: 'h264.online' });
+  }
+}
+
+function handleStreamerMessage(ws, data) {
+  switch (data.type) {
+    case 'h264.headers': {
+      // Reenviar SPS/PPS a los paneles para que puedan decodificar
+      for (const pws of panels()) {
+        send(pws, { type: 'h264.headers', sps: data.sps, pps: data.pps });
+      }
+      break;
+    }
+  }
 }
 
 function handleAgentMessage(ws, data) {
@@ -835,6 +890,12 @@ function handlePanelMessage(ws, data) {
           command: data.command,
           params: data.params || {}
         });
+      }
+      break;
+    }
+    case 'h264.touch': {
+      for (const sws of streamers()) {
+        if (sws.readyState === 1) send(sws, data);
       }
       break;
     }

@@ -29,8 +29,7 @@
   const phoneScreenContainer = document.getElementById('phoneScreenContainer');
   const touchFeedback = document.getElementById('touchFeedback');
 
-  // H.264 Streaming via JMuxer
-  let h264Ws = null;
+  // H.264 Streaming via JMuxer (recibe los frames por el WebSocket del backend)
   let jmuxer = null;
   const STREAMER_PHONE_W = 1264;
   const STREAMER_PHONE_H = 2736;
@@ -109,7 +108,6 @@
     loadAgents();
     loadAll();
     connectWs();
-    connectH264();
   }
 
   function showLogin() {
@@ -150,6 +148,7 @@
     }
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${proto}//${location.host}/ws`);
+    ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'panel.hello', token: currentToken }));
@@ -159,6 +158,11 @@
     };
 
     ws.onmessage = (ev) => {
+      // H.264 llega como datos binarios a traves del mismo socket del backend
+      if (ev.data instanceof ArrayBuffer || ev.data instanceof Blob) {
+        feedH264(ev.data);
+        return;
+      }
       try {
         const msg = JSON.parse(ev.data);
         handleWsMessage(msg);
@@ -181,56 +185,42 @@
     return jmuxer && liveVideo && !liveVideo.classList.contains('hidden');
   }
 
-  function connectH264() {
-    if (h264Ws && h264Ws.readyState === WebSocket.OPEN) return;
-    try {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      h264Ws = new WebSocket(`${proto}//${location.host}:4001/ws`);
-      h264Ws.binaryType = 'arraybuffer';
-
-      h264Ws.onopen = () => console.log('[H264] Conectado al streamer');
-
-      h264Ws.onmessage = (ev) => {
-        const data = ev.data;
-        if (typeof data === 'string') return;
-        if (!jmuxer) {
-          jmuxer = new JMuxer({
-            node: 'liveVideo',
-            mode: 'video',
-            flushingTime: 0,
-            fps: 30,
-            debug: false
-          });
-          liveVideo.classList.remove('hidden');
-          liveImg.classList.add('hidden');
-          livePlaceholder.classList.add('hidden');
-          screenStatusBadge.innerHTML = '<span class="dot"></span> H.264 en Vivo';
-          screenStatusBadge.className = 'status-indicator online';
-        }
-        jmuxer.feed({ video: new Uint8Array(data) });
-      };
-
-      h264Ws.onclose = () => {
-        console.log('[H264] Desconectado, reconectando en 3s...');
-        if (jmuxer) {
-          jmuxer = null;
-          liveVideo.classList.add('hidden');
-          if (!isLiveActive) livePlaceholder.classList.remove('hidden');
-        }
-        setTimeout(connectH264, 3000);
-      };
-
-      h264Ws.onerror = () => h264Ws.close();
-    } catch (e) {
-      console.log('[H264] Error de conexion:', e.message);
-      setTimeout(connectH264, 5000);
+  function feedH264(data) {
+    if (typeof data === 'string') {
+      // cabeceras SPS/PPS en base64
+      try {
+        data = Uint8Array.from(atob(data), (c) => c.charCodeAt(0)).buffer;
+      } catch (e) { return; }
     }
+    if (data instanceof Blob) {
+      const reader = new FileReader();
+      reader.onloadend = () => feedH264(reader.result);
+      reader.readAsArrayBuffer(data);
+      return;
+    }
+    if (!jmuxer) {
+      jmuxer = new JMuxer({
+        node: 'liveVideo',
+        mode: 'video',
+        flushingTime: 0,
+        fps: 30,
+        debug: false
+      });
+      liveVideo.classList.remove('hidden');
+      liveImg.classList.add('hidden');
+      livePlaceholder.classList.add('hidden');
+      screenStatusBadge.innerHTML = '<span class="dot"></span> H.264 en Vivo';
+      screenStatusBadge.className = 'status-indicator online';
+    }
+    jmuxer.feed({ video: new Uint8Array(data) });
+  }
+
+  function connectH264() {
+    // No-op: el H.264 llega por el mismo WebSocket del backend (relay).
   }
 
   function sendH264(msg) {
-    if (h264Ws && h264Ws.readyState === WebSocket.OPEN) {
-      h264Ws.send(JSON.stringify(msg));
-    }
+    sendWs({ type: 'h264.touch', data: msg });
   }
 
   function sendWs(obj) {
@@ -251,6 +241,8 @@
         break;
       case 'live.accepted':
       case 'live.frame':
+        // Si H.264 esta activo, no pisar el video con los frames JPEG
+        if (isH264Active()) break;
         isLiveActive = true;
         screenStatusBadge.innerHTML = `<span class="dot"></span> En Vivo Directo`;
         screenStatusBadge.className = 'status-indicator online';
@@ -259,6 +251,20 @@
         }
         livePlaceholder.classList.add('hidden');
         liveImg.classList.remove('hidden');
+        break;
+      case 'h264.online':
+        // El streamer H.264 esta disponible, se recibiran frames binarios
+        break;
+      case 'h264.offline':
+        if (jmuxer) {
+          jmuxer = null;
+          liveVideo.classList.add('hidden');
+        }
+        break;
+      case 'h264.headers':
+        // SPS/PPS para poder decodificar: alimentar al jmuxer antes de los frames
+        if (msg.sps) feedH264(msg.sps);
+        if (msg.pps) feedH264(msg.pps);
         break;
       case 'live.denied':
         isLiveActive = false;
