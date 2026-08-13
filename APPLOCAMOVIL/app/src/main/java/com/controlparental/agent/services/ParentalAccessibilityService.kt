@@ -16,8 +16,10 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Base64
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
@@ -27,13 +29,21 @@ import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClient.Listener {
 
     companion object {
         var instance: ParentalAccessibilityService? = null
             private set
+
+        // Resolucion de referencia usada por el panel web para mapear los gestos
+        private const val REF_W = 1264
+        private const val REF_H = 2736
     }
+
+    private var screenW = REF_W
+    private var screenH = REF_H
 
     private var wsClient: AgentWebSocketClient? = null
     private var locationTracker: LocationTracker? = null
@@ -56,6 +66,9 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         super.onServiceConnected()
         instance = this
         Log.i("ParentalAccService", "Servicio de Accesibilidad conectado.")
+
+        // Obtener la resolucion real de la pantalla del telefono
+        readScreenSize()
 
         // Iniciar cliente WebSocket
         wsClient = AgentWebSocketClient(listener = this).apply { start() }
@@ -165,6 +178,17 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
     override fun onConnected() {
         Log.i("ParentalAccService", "Conectado al servidor de control parental.")
         locationTracker?.queryLastKnown()
+        // Reportar la resolucion real de la pantalla para que el panel mapee bien los gestos
+        try {
+            wsClient?.send(JSONObject().apply {
+                put("type", "agent.screen")
+                put("width", screenW)
+                put("height", screenH)
+            })
+            Log.i("ParentalAccService", "Resolucion enviada: ${screenW}x${screenH}")
+        } catch (e: Exception) {
+            Log.e("ParentalAccService", "Error enviando resolucion: ${e.message}")
+        }
     }
 
     override fun onDisconnected() {
@@ -202,28 +226,61 @@ class ParentalAccessibilityService : AccessibilityService(), AgentWebSocketClien
         wsClient?.send(json)
     }
 
+    // ---------- Escala de coordenadas ----------
+    // El panel web mapea los gestos a REF_WxREF_H; hay que convertirlos
+    // a la resolucion real de la pantalla del telefono.
+    private fun readScreenSize() {
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getRealMetrics(metrics)
+            screenW = metrics.widthPixels
+            screenH = metrics.heightPixels
+            Log.i("ParentalAccService", "Pantalla real: ${screenW}x${screenH} (referencia ${REF_W}x${REF_H})")
+        } catch (e: Exception) {
+            Log.e("ParentalAccService", "Error leyendo resolucion: ${e.message}")
+        }
+    }
+
+    private fun mapX(x: Int): Int {
+        if (screenW == REF_W || screenW <= 0) return x
+        return (x * screenW.toFloat() / REF_W.toFloat()).roundToInt()
+    }
+
+    private fun mapY(y: Int): Int {
+        if (screenH == REF_H || screenH <= 0) return y
+        return (y * screenH.toFloat() / REF_H.toFloat()).roundToInt()
+    }
+
     // ---------- Control Remoto Tactil (Gestures) ----------
     override fun onTap(x: Int, y: Int) {
+        val realX = mapX(x)
+        val realY = mapY(y)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val path = Path().apply { moveTo(realX.toFloat(), realY.toFloat()) }
             val stroke = GestureDescription.StrokeDescription(path, 0, 50)
             val gesture = GestureDescription.Builder().addStroke(stroke).build()
             dispatchGesture(gesture, null, null)
-            Log.i("ParentalAccService", "Toque remoto ejecutado en ($x, $y)")
+            Log.i("ParentalAccService", "Toque remoto ejecutado en ($realX, $realY)")
         }
     }
 
     override fun onSwipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int) {
+        val rX1 = mapX(x1)
+        val rY1 = mapY(y1)
+        val rX2 = mapX(x2)
+        val rY2 = mapY(y2)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val path = Path().apply {
-                moveTo(x1.toFloat(), y1.toFloat())
-                lineTo(x2.toFloat(), y2.toFloat())
+                moveTo(rX1.toFloat(), rY1.toFloat())
+                lineTo(rX2.toFloat(), rY2.toFloat())
             }
             val dur = duration.coerceIn(100, 350).toLong()
             val stroke = GestureDescription.StrokeDescription(path, 0, dur)
             val gesture = GestureDescription.Builder().addStroke(stroke).build()
             dispatchGesture(gesture, null, null)
-            Log.i("ParentalAccService", "Deslizamiento remoto ejecutado: ($x1, $y1) -> ($x2, $y2) dur=${dur}ms")
+            Log.i("ParentalAccService", "Deslizamiento remoto ejecutado: ($rX1, $rY1) -> ($rX2, $rY2) dur=${dur}ms")
         }
     }
 

@@ -316,7 +316,8 @@ function broadcastAgents() {
     online: a.ws && a.ws.readyState === 1,
     autoAcceptLive: true,
     keyboardMonitor: true,
-    lastSeen: a.lastSeen
+    lastSeen: a.lastSeen,
+    screen: a.screen || null
   }));
   for (const ws of panels()) {
     send(ws, { type: 'agents.updated', agents: list });
@@ -647,6 +648,15 @@ function handleAgentMessage(ws, data) {
   if (agent) agent.lastSeen = Date.now();
 
   switch (data.type) {
+    case 'agent.screen': {
+      const w = parseInt(data.width, 10);
+      const h = parseInt(data.height, 10);
+      if (w > 0 && h > 0) {
+        agent.screen = { width: w, height: h };
+        broadcastAgents();
+      }
+      break;
+    }
     case 'app_blocked': {
       for (const pws of panels()) {
         send(pws, { type: 'app_blocked', agentId, app: data.app, ts: data.ts });

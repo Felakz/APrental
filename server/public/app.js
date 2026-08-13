@@ -11,6 +11,9 @@
   const DEVICE_WIDTH = 1264;
   const DEVICE_HEIGHT = 2736;
 
+  // Resolucion real reportada por cada agente (clave = id del agente)
+  const agentScreens = new Map();
+
   // Elementos del DOM
   const loginView = document.getElementById('loginView');
   const mainView = document.getElementById('mainView');
@@ -339,13 +342,25 @@
 
   // Área real visible del video/imagen dentro del contenedor,
   // descontando las barras negras del letterbox (object-fit: contain)
+  function getActiveResolution() {
+    if (isH264Active()) {
+      return { width: STREAMER_PHONE_W, height: STREAMER_PHONE_H };
+    }
+    const s = agentScreens.get(activeAgentId);
+    if (s && s.width > 0 && s.height > 0) {
+      return { width: s.width, height: s.height };
+    }
+    return { width: DEVICE_WIDTH, height: DEVICE_HEIGHT };
+  }
+
   function getContentRect() {
     const rect = phoneScreenContainer.getBoundingClientRect();
     if (!isH264Active()) {
       // La imagen JPEG usa object-fit: fill (estira y ocupa todo)
       return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     }
-    const contentAspect = STREAMER_PHONE_W / STREAMER_PHONE_H;
+    const res = getActiveResolution();
+    const contentAspect = res.width / res.height;
     const containerAspect = rect.width / rect.height;
     let width, height, offsetX = 0, offsetY = 0;
     if (containerAspect > contentAspect) {
@@ -369,10 +384,9 @@
     const relX = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
     const relY = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
 
-    const activeW = isH264Active() ? STREAMER_PHONE_W : DEVICE_WIDTH;
-    const activeH = isH264Active() ? STREAMER_PHONE_H : DEVICE_HEIGHT;
-    const phoneX = Math.round(relX * activeW);
-    const phoneY = Math.round(relY * activeH);
+    const res = getActiveResolution();
+    const phoneX = Math.round(relX * res.width);
+    const phoneY = Math.round(relY * res.height);
 
     return { phoneX, phoneY, clientX: ev.clientX - rect.left, clientY: ev.clientY - rect.top };
   }
@@ -520,6 +534,11 @@
     noAgents.classList.add('hidden');
 
     list.forEach((a) => {
+      // Guardar resolucion real reportada por el agente (si la mando)
+      if (a.screen && a.screen.width > 0 && a.screen.height > 0) {
+        agentScreens.set(a.id, a.screen);
+      }
+
       if (!activeAgentId && a.online) {
         activeAgentId = a.id;
       }

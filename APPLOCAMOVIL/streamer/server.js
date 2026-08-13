@@ -57,6 +57,7 @@ async function startCapture() {
   if (proc) return;
   console.log('[stream] asegurando pantalla activa y lanzando captura H.264...');
   await wakeDevice();
+  readRealResolution();
 
   // screenrecord se corta a los 180s maximo; lo relanzamos en bucle
   proc = spawn(ADB, ['-s', DEVICE, 'exec-out', 'screenrecord', '--output-format=h264', '--size', '1264x2736', '--bit-rate', '4000000', '--time-limit', '170', '-'], { windowsHide: true });
@@ -242,6 +243,32 @@ function onWsConnect(ws) {
 }
 
 // ---------- control remoto (adb input) ----------
+// Resolucion real del telefono (la del video screenrecord puede diferir,
+// asi que escalamos las coordenadas que llegan en espacio REF al adb)
+const REF_W = 1264;
+const REF_H = 2736;
+let realW = REF_W;
+let realH = REF_H;
+
+function readRealResolution() {
+  execFile(ADB, ['-s', DEVICE, 'shell', 'wm', 'size'], { windowsHide: true }, (err, stdout) => {
+    if (err) return;
+    const m = String(stdout).match(/(\d+)x(\d+)/);
+    if (m) {
+      realW = parseInt(m[1], 10);
+      realH = parseInt(m[2], 10);
+      console.log('[input] resolucion real del dispositivo: ' + realW + 'x' + realH);
+    }
+  });
+}
+
+function scaleCoords(x, y) {
+  return {
+    x: Math.round(x * realW / REF_W),
+    y: Math.round(y * realH / REF_H)
+  };
+}
+
 function handleCommand(msg) {
   const adbInput = (args) => {
     execFile(ADB, ['-s', DEVICE, 'shell', 'input', ...args], { windowsHide: true }, (err) => {
@@ -250,12 +277,17 @@ function handleCommand(msg) {
   };
 
   switch (msg.type) {
-    case 'tap':
-      adbInput(['tap', String(msg.x), String(msg.y)]);
+    case 'tap': {
+      const c = scaleCoords(Number(msg.x), Number(msg.y));
+      adbInput(['tap', String(c.x), String(c.y)]);
       break;
-    case 'swipe':
-      adbInput(['swipe', String(msg.x1), String(msg.y1), String(msg.x2), String(msg.y2), String(msg.dur || 300)]);
+    }
+    case 'swipe': {
+      const c1 = scaleCoords(Number(msg.x1), Number(msg.y1));
+      const c2 = scaleCoords(Number(msg.x2), Number(msg.y2));
+      adbInput(['swipe', String(c1.x), String(c1.y), String(c2.x), String(c2.y), String(msg.dur || 300)]);
       break;
+    }
     case 'key': // keycode de Android, ej: 4=back 3=home 24=volup
       adbInput(['keyevent', String(msg.keyCode)]);
       break;
