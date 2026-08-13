@@ -1082,28 +1082,29 @@ button {
 
 /* Botón flotante para abrir el PIN Pad */
 .pin-pad-toggle-btn {
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 25;
-  background: rgba(59, 130, 246, 0.85);
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 9999;
+  background: rgba(59, 130, 246, 0.9);
   color: #fff;
   border: none;
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 700;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  font-size: 20px;
   cursor: pointer;
   backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
   transition: all 0.2s ease;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pin-pad-toggle-btn:hover {
   background: rgba(37, 99, 235, 0.95);
-  transform: translateX(-50%) translateY(-2px);
+  transform: scale(1.05);
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
 }
 
@@ -1136,4 +1137,95 @@ button {
   .phone-frame {
     height: 560px;
   }
+}
+
+/* ---- Mobile-first responsive ---- */
+@media (max-width: 600px) {
+  body { font-size: 14px; }
+  .dashboard-grid { gap: 10px; padding: 8px; }
+  .card { border-radius: 12px; }
+  .card-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  .card-header h3 { font-size: 15px; }
+
+  /* Botones de accion mas grandes para tocar */
+  .action-buttons-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .btn-action { min-height: 48px; font-size: 13px; border-radius: 10px; }
+  .btn-action.highlight { min-height: 52px; font-size: 14px; }
+
+  /* PIN pad mas grande */
+  .pin-pad-grid { gap: 8px; }
+  .pin-digit-btn { min-height: 52px; font-size: 20px; border-radius: 12px; }
+
+  /* Overlay de desbloqueo */
+  .unlock-overlay-content { width: 95vw !important; max-width: 360px !important; padding: 16px !important; }
+  .unlock-tabs { gap: 4px; }
+  .unlock-tab { padding: 8px 12px; font-size: 12px; }
+
+  /* Numpad del teclado */
+  .numpad-grid { grid-template-columns: repeat(5, 1fr) !important; gap: 4px !important; }
+  .numpad-btn { min-height: 44px; font-size: 16px; }
+  .numpad-actions { grid-template-columns: repeat(3, 1fr) !important; gap: 4px !important; }
+
+  /* Tablas scrollables */
+  .table-responsive { max-height: 300px; }
+  .modern-table { font-size: 12px; }
+  .modern-table th, .modern-table td { padding: 6px 8px; }
+
+  /* Badges */
+  .badge-tag { font-size: 11px; padding: 2px 6px; }
+
+  /* Video en vivo */
+  #liveVideo { max-height: 50vh; }
+  #liveImg { max-height: 50vh; }
+
+  /* Botones de desbloqueo mas grandes */
+  .pin-extra-btn { min-height: 48px; font-size: 14px; padding: 12px 16px; }
+  .pin-digit-btn { min-height: 56px; font-size: 22px; }
+
+  /* Overlay de texto */
+  .typing-log { font-size: 12px; max-height: 200px; }
+
+  /* Secciones colapsables */
+  .card-header { cursor: pointer; }
+}
+
+/* ---- Fullscreen mode ---- */
+.fullscreen-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9999;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+.fullscreen-btn:active { transform: scale(0.9); }
+@media (max-width: 600px) {
+  .fullscreen-btn { display: flex; }
+}
+
+/* Hide scrollbar in fullscreen */
+body.fullscreen-mode {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+body.fullscreen-mode .login-wrapper,
+body.fullscreen-mode .topbar { display: none !important; }
+body.fullscreen-mode .dashboard-grid {
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 60px;
 }

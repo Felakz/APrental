@@ -262,7 +262,7 @@ def handle_message(data):
         y1 = int(data.get("y1", 0))
         x2 = int(data.get("x2", 0))
         y2 = int(data.get("y2", 0))
-        dur = max(100, min(250, int(data.get("duration", 200))))
+        dur = max(100, min(800, int(data.get("duration", 200))))
         log("input.swipe: (%d, %d) -> (%d, %d) dur=%dms" % (x1, y1, x2, y2, dur))
         adb(["shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(dur)])
     elif t == "input.key":

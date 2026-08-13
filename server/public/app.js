@@ -1140,15 +1140,20 @@
       if (pin !== null) alert('PIN invalido. Usa solo numeros (4-12 digitos).');
       return;
     }
+    // 1. Despertar pantalla
     sendWs({ type: 'command.send', agentId: activeAgentId, command: 'wake' });
-    await sleep(600);
-    sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: 632, y1: 2500, x2: 632, y2: 800, duration: 300 });
-    await sleep(800);
+    sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_WAKEUP' });
+    await sleep(1000);
+    // 2. Swipe arriba para desbloquear (desde abajo hacia arriba)
+    sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: 632, y1: 2600, x2: 632, y2: 600, duration: 500 });
+    await sleep(1000);
+    // 3. Ingresar PIN tecla por tecla
     for (const digit of pin) {
       sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[digit] });
-      await sleep(150);
+      await sleep(200);
     }
-    await sleep(300);
+    await sleep(500);
+    // 4. Presionar Enter
     sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
     pinBuffer = pin.split('');
     updatePinDisplay();
@@ -1193,6 +1198,28 @@
     loadTyping();
     loadPdfs();
     loadGeofences();
+  }
+
+  // ---------- Fullscreen Mode (mobile) ----------
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        document.body.classList.add('fullscreen-mode');
+        fullscreenBtn.textContent = '✕';
+      } else {
+        document.exitFullscreen();
+        document.body.classList.remove('fullscreen-mode');
+        fullscreenBtn.textContent = '⛶';
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        document.body.classList.remove('fullscreen-mode');
+        fullscreenBtn.textContent = '⛶';
+      }
+    });
   }
 
   // Auto-login con token existente
