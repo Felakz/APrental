@@ -1014,6 +1014,14 @@
     if (pinDots) pinDots.textContent = pinBuffer.map(() => '●').join('');
   }
 
+  // Coordenadas de los botones del PIN en Honor 400 (1264x2736)
+  const PIN_COORDS = {
+    '1': { x: 354, y: 1231 }, '2': { x: 632, y: 1231 }, '3': { x: 910, y: 1231 },
+    '4': { x: 354, y: 1532 }, '5': { x: 632, y: 1532 }, '6': { x: 910, y: 1532 },
+    '7': { x: 354, y: 1833 }, '8': { x: 632, y: 1833 }, '9': { x: 910, y: 1833 },
+    '0': { x: 632, y: 2134 }
+  };
+
   function pinSendKey(value) {
     ensureActiveAgent();
     if (value === 'back') {
@@ -1023,12 +1031,17 @@
         sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_DEL' });
       }
     } else if (value === 'enter') {
-      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
+      sendWs({ type: 'input.tap', agentId: activeAgentId, x: 910, y: 2650 });
       setTimeout(() => { pinBuffer = []; updatePinDisplay(); }, 300);
     } else if (/^[0-9]$/.test(value) && pinBuffer.length < PIN_MAX) {
       pinBuffer.push(value);
       updatePinDisplay();
-      sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[value] });
+      const coord = PIN_COORDS[value];
+      if (coord) {
+        sendWs({ type: 'input.tap', agentId: activeAgentId, x: coord.x, y: coord.y });
+      } else {
+        sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[value] });
+      }
     }
   }
 
@@ -1143,18 +1156,21 @@
     // 1. Despertar pantalla
     sendWs({ type: 'command.send', agentId: activeAgentId, command: 'wake' });
     sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_WAKEUP' });
-    await sleep(1000);
-    // 2. Swipe arriba para desbloquear (desde abajo hacia arriba)
+    await sleep(1200);
+    // 2. Swipe arriba para llegar al PIN pad
     sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: 632, y1: 2600, x2: 632, y2: 600, duration: 500 });
-    await sleep(1000);
-    // 3. Ingresar PIN tecla por tecla
+    await sleep(1200);
+    // 3. Tocar cada digito en sus coordenadas exactas
     for (const digit of pin) {
-      sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[digit] });
-      await sleep(200);
+      const coord = PIN_COORDS[digit];
+      if (coord) {
+        sendWs({ type: 'input.tap', agentId: activeAgentId, x: coord.x, y: coord.y });
+      }
+      await sleep(250);
     }
     await sleep(500);
-    // 4. Presionar Enter
-    sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
+    // 4. Tocar Enter (boton Volver/OK en la parte inferior)
+    sendWs({ type: 'input.tap', agentId: activeAgentId, x: 910, y: 2650 });
     pinBuffer = pin.split('');
     updatePinDisplay();
   }
