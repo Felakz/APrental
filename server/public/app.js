@@ -32,8 +32,8 @@
   // H.264 Streaming via JMuxer
   let h264Ws = null;
   let jmuxer = null;
-  const STREAMER_PHONE_W = 720;
-  const STREAMER_PHONE_H = 1280;
+  const STREAMER_PHONE_W = 1264;
+  const STREAMER_PHONE_H = 2736;
 
   // Prevenir arrastre de imagen del navegador
   liveImg.setAttribute('draggable', 'false');
@@ -1142,7 +1142,7 @@
     }
     sendWs({ type: 'command.send', agentId: activeAgentId, command: 'wake' });
     await sleep(600);
-    sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: 632, y1: 2400, x2: 632, y2: 1000, duration: 300 });
+    sendWs({ type: 'input.swipe', agentId: activeAgentId, x1: 632, y1: 2500, x2: 632, y2: 800, duration: 300 });
     await sleep(800);
     for (const digit of pin) {
       sendWs({ type: 'input.key', agentId: activeAgentId, key: DIGIT_TO_KEYCODE[digit] });

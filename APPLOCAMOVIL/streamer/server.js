@@ -46,7 +46,7 @@ async function startCapture() {
   await wakeDevice();
 
   // screenrecord se corta a los 180s maximo; lo relanzamos en bucle
-  proc = spawn(ADB, ['-s', DEVICE, 'exec-out', 'screenrecord', '--output-format=h264', '--size', '720x1280', '--bit-rate', '4000000', '--time-limit', '170', '-'], { windowsHide: true });
+  proc = spawn(ADB, ['-s', DEVICE, 'exec-out', 'screenrecord', '--output-format=h264', '--size', '1264x2736', '--bit-rate', '4000000', '--time-limit', '170', '-'], { windowsHide: true });
 
   proc.stdout.on('data', (chunk) => {
     // Buscar y guardar SPS/PPS de los primeros chunks para nuevos clientes

@@ -8,8 +8,8 @@
   let connected = false;
 
   // mapear coordenadas del video (objeto) a las del telefono (720x1280)
-  const PHONE_W = 720;
-  const PHONE_H = 1280;
+  const PHONE_W = 1264;
+  const PHONE_H = 2736;
 
   function mapPoint(e) {
     const rect = video.getBoundingClientRect();
