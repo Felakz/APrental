@@ -337,8 +337,33 @@
     return { clientX: e.clientX, clientY: e.clientY };
   }
 
-  function getPhoneCoordinates(e) {
+  // Área real visible del video/imagen dentro del contenedor,
+  // descontando las barras negras del letterbox (object-fit: contain)
+  function getContentRect() {
     const rect = phoneScreenContainer.getBoundingClientRect();
+    if (!isH264Active()) {
+      // La imagen JPEG usa object-fit: fill (estira y ocupa todo)
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    }
+    const contentAspect = STREAMER_PHONE_W / STREAMER_PHONE_H;
+    const containerAspect = rect.width / rect.height;
+    let width, height, offsetX = 0, offsetY = 0;
+    if (containerAspect > contentAspect) {
+      // contenedor mas ancho -> barras a los lados
+      height = rect.height;
+      width = height * contentAspect;
+      offsetX = (rect.width - width) / 2;
+    } else {
+      // contenedor mas alto -> barras arriba/abajo
+      width = rect.width;
+      height = width / contentAspect;
+      offsetY = (rect.height - height) / 2;
+    }
+    return { left: rect.left + offsetX, top: rect.top + offsetY, width, height };
+  }
+
+  function getPhoneCoordinates(e) {
+    const rect = getContentRect();
     const ev = getEventCoords(e);
 
     const relX = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
@@ -349,7 +374,7 @@
     const phoneX = Math.round(relX * activeW);
     const phoneY = Math.round(relY * activeH);
 
-    return { phoneX, phoneY, clientX: ev.clientX - rect.left, clientY: ev.clientY - top };
+    return { phoneX, phoneY, clientX: ev.clientX - rect.left, clientY: ev.clientY - rect.top };
   }
 
   function showTouchFeedback(x, y) {
