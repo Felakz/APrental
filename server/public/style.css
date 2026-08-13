@@ -695,6 +695,173 @@ button {
   border-radius: var(--radius-md);
 }
 
+/* ==========================================================================
+   PIN Pad Overlay (se superpone encima de la pantalla del teléfono)
+   ========================================================================== */
+
+.pin-pad-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 32px;
+  animation: fadeInPin 0.25s ease-out;
+}
+
+@keyframes fadeInPin {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pin-pad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.pin-pad-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.3px;
+}
+
+.pin-pad-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 13px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pin-pad-close-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+/* Display del PIN (dots) */
+.pin-display {
+  width: 100%;
+  max-width: 220px;
+  height: 42px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  padding: 0 14px;
+}
+
+.pin-dots {
+  font-size: 22px;
+  letter-spacing: 8px;
+  color: #60a5fa;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+/* Grid del teclado PIN */
+.pin-pad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 220px;
+}
+
+.pin-key {
+  height: 48px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.12s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pin-key:hover {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.pin-key:active {
+  transform: scale(0.92);
+  background: rgba(59, 130, 246, 0.4);
+}
+
+.pin-key.pin-special {
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+}
+
+.pin-key.pin-enter {
+  background: rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.pin-key.pin-enter:hover {
+  background: rgba(59, 130, 246, 0.45);
+  color: #93c5fd;
+}
+
+/* Botón flotante para abrir el PIN Pad */
+.pin-pad-toggle-btn {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  background: rgba(59, 130, 246, 0.85);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.pin-pad-toggle-btn:hover {
+  background: rgba(37, 99, 235, 0.95);
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+}
+
+.pin-pad-toggle-btn.active {
+  background: rgba(239, 68, 68, 0.85);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+}
+
+.pin-pad-toggle-btn.active:hover {
+  background: rgba(220, 38, 38, 0.95);
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

@@ -99,7 +99,34 @@
                   <span>Haz clic en "Transmitir Pantalla" para interactuar</span>
                 </div>
                 <div id="touchFeedback" class="touch-ripple hidden"></div>
+
+                <!-- Overlay PIN Pad (se muestra encima de la pantalla cuando está en negro) -->
+                <div id="pinPadOverlay" class="pin-pad-overlay hidden">
+                  <div class="pin-pad-header">
+                    <span class="pin-pad-title">🔐 Ingresar PIN</span>
+                    <button id="pinPadClose" class="pin-pad-close-btn" title="Cerrar teclado">✕</button>
+                  </div>
+                  <div class="pin-display" id="pinDisplay">
+                    <span class="pin-dots" id="pinDots"></span>
+                  </div>
+                  <div class="pin-pad-grid">
+                    <button class="pin-key" data-pin="1">1</button>
+                    <button class="pin-key" data-pin="2">2</button>
+                    <button class="pin-key" data-pin="3">3</button>
+                    <button class="pin-key" data-pin="4">4</button>
+                    <button class="pin-key" data-pin="5">5</button>
+                    <button class="pin-key" data-pin="6">6</button>
+                    <button class="pin-key" data-pin="7">7</button>
+                    <button class="pin-key" data-pin="8">8</button>
+                    <button class="pin-key" data-pin="9">9</button>
+                    <button class="pin-key pin-special" data-pin="back">⌫</button>
+                    <button class="pin-key" data-pin="0">0</button>
+                    <button class="pin-key pin-special pin-enter" data-pin="enter">⏎</button>
+                  </div>
+                </div>
               </div>
+              <!-- Botón flotante para abrir el PIN Pad -->
+              <button id="pinPadToggle" class="pin-pad-toggle-btn" title="Abrir teclado PIN encima de la pantalla">🔢 PIN</button>
             </div>
             <!-- Barra de Navegación Virtual Android -->
             <div class="virtual-navbar">

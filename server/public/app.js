@@ -706,6 +706,65 @@
     return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // ---------- PIN Pad Overlay (teclado encima de la pantalla en negro) ----------
+  const pinPadOverlay = document.getElementById('pinPadOverlay');
+  const pinPadToggle = document.getElementById('pinPadToggle');
+  const pinPadClose = document.getElementById('pinPadClose');
+  const pinDots = document.getElementById('pinDots');
+  let pinBuffer = [];
+  const PIN_MAX = 12;
+
+  function updatePinDisplay() {
+    pinDots.textContent = pinBuffer.map(() => '●').join('');
+  }
+
+  function pinSendKey(value) {
+    ensureActiveAgent();
+    if (value === 'back') {
+      if (pinBuffer.length > 0) {
+        pinBuffer.pop();
+        updatePinDisplay();
+        sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_DEL' });
+      }
+    } else if (value === 'enter') {
+      sendWs({ type: 'input.key', agentId: activeAgentId, key: 'KEYCODE_ENTER' });
+      // Limpiar buffer despues de enviar
+      setTimeout(() => { pinBuffer = []; updatePinDisplay(); }, 300);
+    } else if (/^[0-9]$/.test(value) && pinBuffer.length < PIN_MAX) {
+      pinBuffer.push(value);
+      updatePinDisplay();
+      sendWs({ type: 'input.text', agentId: activeAgentId, text: value });
+    }
+  }
+
+  if (pinPadToggle) {
+    pinPadToggle.addEventListener('click', () => {
+      pinPadOverlay.classList.toggle('hidden');
+      pinPadToggle.classList.toggle('active');
+      if (!pinPadOverlay.classList.contains('hidden')) {
+        pinBuffer = [];
+        updatePinDisplay();
+      }
+    });
+  }
+
+  if (pinPadClose) {
+    pinPadClose.addEventListener('click', () => {
+      pinPadOverlay.classList.add('hidden');
+      pinPadToggle.classList.remove('active');
+    });
+  }
+
+  document.querySelectorAll('.pin-key').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const val = e.currentTarget.getAttribute('data-pin');
+      if (val) pinSendKey(val);
+      // Feedback visual
+      btn.style.transform = 'scale(0.9)';
+      setTimeout(() => { btn.style.transform = ''; }, 100);
+    });
+  });
+
   function loadAll() {
     loadAgents();
     loadBlockedApps();
