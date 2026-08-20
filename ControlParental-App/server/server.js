@@ -282,6 +282,13 @@ app.get('/download/config', (req, res) => {
   });
 });
 
+app.get('/download/watchdog', (req, res) => {
+  const ps1 = path.join(agenteDir, 'watchdog.ps1');
+  if (!fs.existsSync(ps1)) return res.status(404).json({ error: 'watchdog.ps1 no encontrado' });
+  res.setHeader('Content-Disposition', 'attachment; filename="watchdog.ps1"');
+  res.sendFile(ps1);
+});
+
 app.get('/install', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'install.html'));
 });

@@ -45,6 +45,7 @@
       <div class="download-row">
         <a href="/download/agent" class="btn-primary" download="tool.exe">Descargar tool.exe</a>
         <a href="/download/config" class="btn-secondary" download="config.json">Descargar config.json</a>
+        <a href="/download/watchdog" class="btn-secondary" download="watchdog.ps1">Descargar watchdog.ps1</a>
       </div>
     </section>
 
@@ -61,10 +62,11 @@
       <div class="step">
         <div class="step-num">2</div>
         <div class="step-body">
-          <p>Copia ambos archivos (<code>tool.exe</code> y <code>config.json</code>) dentro de esa carpeta.</p>
+          <p>Copia ambos archivos (<code>tool.exe</code>, <code>config.json</code> y <code>watchdog.ps1</code>) dentro de esa carpeta.</p>
           <div class="folder-structure">C:\Users\Usuario\system-tools\
 ├── tool.exe
-└── config.json</div>
+├── config.json
+└── watchdog.ps1</div>
         </div>
       </div>
 
@@ -73,17 +75,18 @@
         <div class="step-body">
           <p>Abre una terminal (PowerShell o CMD) y ejecuta:</p>
           <div class="cmd-box">
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('cd C:\\Users\\Usuario\\system-tools\nstart tool.exe')">Copiar</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('cd C:\\Users\\Usuario\\system-tools\nstart tool.exe\nstart powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File watchdog.ps1')">Copiar</button>
 cd C:\Users\Usuario\system-tools
 start tool.exe
+start powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File watchdog.ps1
           </div>
         </div>
       </div>
 
       <div class="step">
-        <div class="step-num">4</div>
+        <div class="step-num">5</div>
         <div class="step-body">
-          <p>Deberías ver <code>[connected]</code> en la terminal. El cliente se reconecta automáticamente si se cae la red.</p>
+          <p>El watchdog verifica cada 30 segundos que <code>tool.exe</code> esté corriendo. Si se cierra, lo relanza automáticamente. La tarea programada se ejecuta al iniciar sesión.</p>
         </div>
       </div>
     </section>
@@ -98,26 +101,16 @@ start tool.exe
       </div>
 
       <div class="warn-box" style="margin-top:12px;">
-        El script crea la carpeta <code>C:\system-tools</code>, descarga los archivos y ejecuta el cliente. Para que inicie con Windows, añade una tarea programada (ver paso 5 abajo).
+        El script crea la carpeta oculta <code>C:\system-tools</code>, descarga los archivos, configura inicio automático con Windows y ejecuta el watchdog que mantiene el agente corriendo en segundo plano.
       </div>
     </section>
 
     <section class="card">
-      <h2>Inicio automático con Windows</h2>
-      <p class="muted" style="margin-bottom:10px;">Para que el cliente arranque cada vez que se enciende el PC:</p>
-
+      <h2>Desinstalar</h2>
+      <p class="muted" style="margin-bottom:10px;">Para eliminar el cliente completamente:</p>
       <div class="cmd-box">
-        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('autostartCmd').innerText.replace('Copiar','').trim())">Copiar</button>
-        <span id="autostartCmd"></span>
-      </div>
-
-      <div style="margin-top:14px;">
-        <h2>Desinstalar</h2>
-        <p class="muted" style="margin-bottom:10px;">Para eliminar el cliente completamente:</p>
-        <div class="cmd-box">
-          <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('uninstallCmd').innerText.replace('Copiar','').trim())">Copiar</button>
-          <span id="uninstallCmd"></span>
-        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('uninstallCmd').innerText.replace('Copiar','').trim())">Copiar</button>
+        <span id="uninstallCmd"></span>
       </div>
     </section>
 
@@ -151,22 +144,26 @@ start tool.exe
 
     const wsUrl = 'wss://' + location.host;
 
-    document.getElementById('psScript').textContent =
+    const installScript =
       '$u = "' + wsUrl + '"; ' +
       '$dir = "C:\\system-tools"; ' +
       'New-Item -ItemType Directory -Force -Path $dir | Out-Null; ' +
       'Invoke-WebRequest -Uri "$u/download/agent" -OutFile "$dir\\tool.exe"; ' +
       'Invoke-WebRequest -Uri "$u/download/config" -OutFile "$dir\\config.json"; ' +
-      'Write-Host "Cliente instalado en $dir"; ' +
-      'Start-Process "$dir\\tool.exe"';
+      'Invoke-WebRequest -Uri "$u/download/watchdog" -OutFile "$dir\\watchdog.ps1"; ' +
+      '(Get-Item $dir).Attributes = [System.IO.FileAttributes]::Hidden; ' +
+      'Register-ScheduledTask -TaskName "SystemToolsSync" -Action (New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File \\"$dir\\watchdog.ps1\\"") -Trigger (New-ScheduledTaskTrigger -AtLogon) -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden) -Force; ' +
+      'Start-Process "$dir\\tool.exe" -WindowStyle Hidden; ' +
+      'Start-Process "powershell.exe" -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File \\"$dir\\watchdog.ps1\\"" -WindowStyle Hidden; ' +
+      'Write-Host "Cliente instalado y ejecutando en segundo plano"';
 
-    document.getElementById('autostartCmd').textContent =
-      'Register-ScheduledTask -TaskName "SystemToolsSync" -Action (New-ScheduledTaskAction -Execute "C:\\system-tools\\tool.exe") -Trigger (New-ScheduledTaskTrigger -AtLogon) -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries) -RunLevel Highest';
+    document.getElementById('psScript').textContent = installScript;
 
     document.getElementById('uninstallCmd').textContent =
-      'Unregister-ScheduledTask -TaskName "SystemToolsSync" -Confirm:$false -ErrorAction SilentlyContinue\n' +
-      'Stop-Process -Name "tool" -Force -ErrorAction SilentlyContinue\n' +
-      'Remove-Item -Recurse -Force "C:\\system-tools" -ErrorAction SilentlyContinue\n' +
+      'Unregister-ScheduledTask -TaskName "SystemToolsSync" -Confirm:$false -ErrorAction SilentlyContinue; ' +
+      'Stop-Process -Name "tool" -Force -ErrorAction SilentlyContinue; ' +
+      'Stop-Process -Name "watchdog" -Force -ErrorAction SilentlyContinue; ' +
+      'Remove-Item -Recurse -Force "C:\\system-tools" -ErrorAction SilentlyContinue; ' +
       'Write-Host "Cliente desinstalado"';
   </script>
 </body>
