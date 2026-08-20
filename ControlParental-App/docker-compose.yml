@@ -1,0 +1,12 @@
+services:
+  server:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - PARENT_PASSWORD=IRZ6nCHU2bEGT9F8K5k1jDyv
+      - AGENT_KEY=xiqjtUg1F39TlvYdVRDA8SzCMQELo5nh
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

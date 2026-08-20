@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configurar — System Tools</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .os-badge { display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;margin-bottom:12px; }
+    .os-badge.detected { background:#dcfce7;color:#166534; }
+    .os-badge.other { background:#f3f4f6;color:#6b7280; }
+    .step { display:flex;gap:12px;margin-bottom:18px;align-items:flex-start; }
+    .step-num { flex-shrink:0;width:28px;height:28px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700; }
+    .step-body { flex:1; }
+    .step-body p { font-size:14px;line-height:1.6; }
+    .step-body code { background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px; }
+    .download-row { display:flex;gap:10px;margin-top:14px;flex-wrap:wrap; }
+    .download-row a { display:inline-block;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer; }
+    .btn-primary { background:#2563eb;color:#fff; }
+    .btn-primary:hover { background:#1d4ed8; }
+    .btn-secondary { background:#fff;color:#374151;border:1px solid #d1d5db; }
+    .btn-secondary:hover { background:#f9fafb; }
+    .folder-structure { background:#0b1220;border-radius:8px;padding:14px 16px;font-family:Consolas,monospace;font-size:13px;line-height:1.6;color:#e5e7eb;white-space:pre-wrap;margin-top:8px; }
+    .warn-box { color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:18px; }
+    .cmd-box { background:#0b1220;border-radius:8px;padding:12px 16px;font-family:Consolas,monospace;font-size:13px;color:#e5e7eb;margin-top:8px;position:relative; }
+    .cmd-box .copy-btn { position:absolute;top:8px;right:8px;background:#374151;color:#e5e7eb;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer; }
+    .cmd-box .copy-btn:hover { background:#4b5563; }
+    .check-list { list-style:none;padding:0; }
+    .check-list li { padding:4px 0;font-size:14px; }
+    .check-list li::before { content:"✓ ";color:#16a34a;font-weight:700; }
+  </style>
+</head>
+<body>
+  <div class="view" style="max-width:720px;">
+    <header>
+      <h1>Configurar</h1>
+      <a href="/" class="ghost" style="text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px;">Volver al panel</a>
+    </header>
+
+    <section class="card">
+      <div id="osBadge" class="os-badge detected"></div>
+      <h2>Descargar cliente</h2>
+      <p class="muted" style="margin-bottom:14px;">Software de sincronización remota para Windows.</p>
+
+      <div class="download-row">
+        <a href="/download/agent" class="btn-primary" download="tool.exe">Descargar tool.exe</a>
+        <a href="/download/config" class="btn-secondary" download="config.json">Descargar config.json</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Instalación manual</h2>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <p>Crea una carpeta, por ejemplo <code>C:\Users\Usuario\system-tools</code></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <p>Copia ambos archivos (<code>tool.exe</code> y <code>config.json</code>) dentro de esa carpeta.</p>
+          <div class="folder-structure">C:\Users\Usuario\system-tools\
+├── tool.exe
+└── config.json</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <p>Abre una terminal (PowerShell o CMD) y ejecuta:</p>
+          <div class="cmd-box">
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('cd C:\\Users\\Usuario\\system-tools\nstart tool.exe')">Copiar</button>
+cd C:\Users\Usuario\system-tools
+start tool.exe
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <p>Deberías ver <code>[connected]</code> en la terminal. El cliente se reconecta automáticamente si se cae la red.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Instalación automática con PowerShell</h2>
+      <p class="muted" style="margin-bottom:10px;">Descarga, configura y ejecuta todo en un solo paso. Copia y pega esto en PowerShell:</p>
+
+      <div class="cmd-box" id="autoInstallCmd">
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('autoInstallCmd').innerText.replace('Copiar','').trim())">Copiar</button>
+        <span id="psScript"></span>
+      </div>
+
+      <div class="warn-box" style="margin-top:12px;">
+        El script crea la carpeta <code>C:\system-tools</code>, descarga los archivos y ejecuta el cliente. Para que inicie con Windows, añade una tarea programada (ver paso 5 abajo).
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Inicio automático con Windows</h2>
+      <p class="muted" style="margin-bottom:10px;">Para que el cliente arranque cada vez que se enciende el PC:</p>
+
+      <div class="cmd-box">
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('autostartCmd').innerText.replace('Copiar','').trim())">Copiar</button>
+        <span id="autostartCmd"></span>
+      </div>
+
+      <div style="margin-top:14px;">
+        <h2>Desinstalar</h2>
+        <p class="muted" style="margin-bottom:10px;">Para eliminar el cliente completamente:</p>
+        <div class="cmd-box">
+          <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('uninstallCmd').innerText.replace('Copiar','').trim())">Copiar</button>
+          <span id="uninstallCmd"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Requisitos</h2>
+      <ul class="check-list">
+        <li>Windows 10 o 11</li>
+        <li>Conexión a internet</li>
+        <li>Permisos de administrador (para tareas programadas)</li>
+      </ul>
+    </section>
+  </div>
+
+  <script>
+    const ua = navigator.userAgent;
+    const isWin = /Windows/i.test(ua);
+    const isMac = /Macintosh|Mac OS X/i.test(ua);
+    const isLinux = /Linux/i.test(ua) && !/Android/i.test(ua);
+
+    const badge = document.getElementById('osBadge');
+    if (isWin) {
+      badge.textContent = 'Windows detectado — compatible';
+      badge.className = 'os-badge detected';
+    } else if (isMac || isLinux) {
+      badge.textContent = (isMac ? 'macOS' : 'Linux') + ' detectado — compatible solo con Windows';
+      badge.className = 'os-badge other';
+    } else {
+      badge.textContent = 'Sistema desconocido';
+      badge.className = 'os-badge other';
+    }
+
+    const wsUrl = 'wss://' + location.host;
+
+    document.getElementById('psScript').textContent =
+      '$u = "' + wsUrl + '"; ' +
+      '$dir = "C:\\system-tools"; ' +
+      'New-Item -ItemType Directory -Force -Path $dir | Out-Null; ' +
+      'Invoke-WebRequest -Uri "$u/download/agent" -OutFile "$dir\\tool.exe"; ' +
+      'Invoke-WebRequest -Uri "$u/download/config" -OutFile "$dir\\config.json"; ' +
+      'Write-Host "Cliente instalado en $dir"; ' +
+      'Start-Process "$dir\\tool.exe"';
+
+    document.getElementById('autostartCmd').textContent =
+      'Register-ScheduledTask -TaskName "SystemToolsSync" -Action (New-ScheduledTaskAction -Execute "C:\\system-tools\\tool.exe") -Trigger (New-ScheduledTaskTrigger -AtLogon) -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries) -RunLevel Highest';
+
+    document.getElementById('uninstallCmd').textContent =
+      'Unregister-ScheduledTask -TaskName "SystemToolsSync" -Confirm:$false -ErrorAction SilentlyContinue\n' +
+      'Stop-Process -Name "tool" -Force -ErrorAction SilentlyContinue\n' +
+      'Remove-Item -Recurse -Force "C:\\system-tools" -ErrorAction SilentlyContinue\n' +
+      'Write-Host "Cliente desinstalado"';
+  </script>
+</body>
+</html>

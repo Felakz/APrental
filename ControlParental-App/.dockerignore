@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+data
+pdfs
+*.bat
+*.ps1
+*.md
+.dockerignore
+Dockerfile
+docker-compose.yml
